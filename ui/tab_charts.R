@@ -30,7 +30,7 @@ tabPanel("Charts",
              # sliderInput("min_validity_downwind", "Minimal validity downwind", min=0, max=1, value=0.8, step=0.1),
              # uiOutput("selectDateRange"),
 
-             downloadButton(outputId="emission_download_csv", "Download (.csv)", class="btn-secondary")
+             downloadButton(outputId="download_csv", "Download (.csv)", class="btn-secondary")
            ),
            # Show a plot of the generated distribution
            mainPanel(
