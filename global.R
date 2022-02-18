@@ -16,6 +16,8 @@ library(leaflet.extras2)
 library(plotly)
 library(DT)
 library(scales)
+library(raster)
+library(mapview)
 
 sel <- dplyr::select
 source('data.R')
@@ -43,4 +45,10 @@ group_bys <- c("Country"="country", "Sector"="sector", "Fuel"="fuel")
 chart_types <- c("Bar (Horizontal)"="barh")
 topn <- 20 # How many rows max in chart
 
+ceds_sectors <- c("Total"="total", "Agriculture"="agri", "Energy"="energy",
+                  "Industrial"="industrial", "Transportation"="transport",
+                  "Residential, Commercial, Other"="rescom",
+                  "Solvents production and application"="solvents",
+                  "Waste"="waste", "International Shipping"="shipping")
 
+map_palettes=c("Viridis"="viridis","OrRd"="OrRdREVERSE","Inferno"="inferno")

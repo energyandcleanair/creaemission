@@ -3,3 +3,7 @@ get_emissions <- function(){
     mutate(country=countrycode(iso, "iso3c", "country.name",
                                custom_match=c("GLOBAL"="Global")))
 }
+
+get_emissions_raster <- function(poll){
+  raster::stack('data/nox_emissions_2019.tif')
+}

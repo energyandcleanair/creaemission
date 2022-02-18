@@ -12,5 +12,6 @@ ui <- navbarPage(
     theme = "theme.css",
     id = "nav-page",
     source(file.path("ui", "tab_charts.R"),  local = TRUE)$value,
+    source(file.path("ui", "tab_maps.R"),  local = TRUE)$value,
     source(file.path("ui", "tab_about.R"),  local = TRUE)$value
 )
