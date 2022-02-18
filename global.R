@@ -18,7 +18,7 @@ library(DT)
 library(scales)
 library(raster)
 library(mapview)
-
+library(rgdal)
 sel <- dplyr::select
 source('data.R')
 # source('utils.R')
