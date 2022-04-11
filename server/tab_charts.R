@@ -12,31 +12,31 @@ output$download_csv <- downloadHandler(
   }
 )
 
-output$selectCountry <- renderUI({
-  req(emissions_all())
-
-  countries <- c("World", unique(emissions_all()$country))
-  countries <- countries[!is.na(countries)]
-
-  selectInput("country", "Country",
-              multiple=F,
-              choices=countries,
-              selected="world")
-
-
-})
-
-output$selectCity <- renderUI({
-  req(emissions_cities)
-
-  cities <- c('None', 'All cities',
-              sort(unique(emissions_cities()$city)))
-
-  selectInput('city', 'City',
-              multiple = F,
-              choices = cities,
-              selected = 'None')
-})
+# output$selectCountry <- renderUI({
+#   req(emissions_all())
+#
+#   countries <- c("World", unique(emissions_all()$country))
+#   countries <- countries[!is.na(countries)]
+#
+#   selectInput("country", "Country",
+#               multiple=F,
+#               choices=countries,
+#               selected="world")
+#
+#
+# })
+#
+# output$selectCity <- renderUI({
+#   req(emissions_cities)
+#
+#   cities <- c('None', 'All cities',
+#               sort(unique(emissions_cities()$city)))
+#
+#   selectInput('city', 'City',
+#               multiple = F,
+#               choices = cities,
+#               selected = 'None')
+# })
 
 # Output Elements --------------------------------------
 emissions_all <- reactive({
@@ -161,8 +161,9 @@ region_type <- reactive({
   # updateSelectInput(inputId = 'pollutant', choices = pollutants)
   # updateSelectInput(inputId = 'color_by', choices = color_bys)
   # updateSelectInput(inputId = 'group_by', choices = group_bys)
-
 })
+
+# change other input fields based on region_type
 observeEvent(region_type(), {
   choices <- region_type()
   if(input$region_type == 'Countries'){
