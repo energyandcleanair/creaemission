@@ -7,7 +7,12 @@ tabPanel("Charts",
              class ="no-padding",
              # shinyjs::useShinyjs(),
 
-             uiOutput("selectCountry"),
+
+             selectInput("region_type", "Region type:", multiple=F, choices = c('Countries', 'C40 Cities'), selected='Countries'),
+             selectInput('country', 'Country', multiple = F, choice = NULL),
+             selectInput('city', 'City', multiple = F, choices = NULL),
+             # uiOutput("selectCountry"),
+             # uiOutput('selectCity'),
              selectInput("pollutant", "Pollutant:", multiple=F, choices = pollutants, selected=pollutants[1]),
              selectInput("color_by", "Color by:", multiple=F, choices = color_bys, selected=color_bys[2]),
              selectInput("group_by", "Group by:", multiple=F, choices = group_bys, selected=group_bys[1]),
