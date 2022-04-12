@@ -114,6 +114,16 @@ output$plot <- renderPlotly({
     # getPalette = colorRampPalette(rcrea::pal_crea)
     getPalette = colorRampPalette(brewer.pal(12, "Paired"))
 
+    if(input$region_type == 'C40 Cities'){
+      if(input$measurement == 'Absolute'){
+        unit_suffix <- ' kt'
+      } else {
+        unit_suffix <- ' kg'
+      }
+    } else {
+      unit_suffix <- ' kt'
+    }
+
 
     plt <- e_plt %>%
       ggplot(aes(value, group)) +
@@ -121,7 +131,7 @@ output$plot <- renderPlotly({
        # geom_text(aes(label=ifelse(value_pct<0.01,"",scales::percent(value_pct, accuracy=.1))), vjust=1, nudge_y = -500, col="white", size=4) +
        rcrea::theme_crea() +
        scale_x_continuous(expand = expansion(mult=c(0, 0.1)),
-                           labels = scales::comma_format(suffix=" kt")) +
+                           labels = scales::comma_format(suffix=unit_suffix)) +
       scale_fill_manual(values = getPalette(colourCount),
                         name=NULL) +
        labs(caption="Source: CREA analysis based on CEDS.",
