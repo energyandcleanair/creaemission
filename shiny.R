@@ -20,7 +20,7 @@ deployShinyApp <- function() {
                             secret=Sys.getenv("SHINYAPP_SECRET"))
   # # Deploy production
   rsconnect::deployApp(".",
-                       appName="ceds",
+                       appName="c40_gas",
                        account = Sys.getenv("SHINYAPP_ACCOUNT"),
                        forceUpdate = T)
 
