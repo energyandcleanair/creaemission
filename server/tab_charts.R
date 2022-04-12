@@ -64,7 +64,7 @@ emissions <- reactive({
   } else {
     emissions_cities() %>%
       filter(poll == input$pollutant) %>%
-      filter(input$city == 'All cities' | city == input$city) %>%
+      filter(input$city == 'All cities' | city %in% input$city) %>%
       filter(measurement == input$measurement)
   }
   # emissions %>% filter(measurement == input$measurement)
@@ -209,7 +209,7 @@ output$selectCountry <- renderUI({
 
     cities <- c('All cities',
                 sort(unique(emissions_cities()$city)))
-    selectInput('city', 'City', choices = cities)
+    selectInput('city', 'City', choices = cities, selected = 'All cities', multiple = T)
 
     # updateSelectInput(inputId = 'select_city', choices = cities)
     # updateSelectInput(inputId = 'select_country', choices = c(''))
