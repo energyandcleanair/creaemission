@@ -57,15 +57,17 @@ emissions <- reactive({
   # emissions_all() %>%
   #   filter(poll==input$pollutant) %>%
   #   filter(input$country=="World" | country==input$country)
-  if(input$region_type == 'Countries'){
+  emissions <- if(input$region_type == 'Countries'){
     emissions_all() %>%
       filter(poll==input$pollutant) %>%
       filter(input$country=="World" | country==input$country)
   } else {
     emissions_cities() %>%
       filter(poll == input$pollutant) %>%
-      filter(input$city == 'All cities' | city == input$city)
+      filter(input$city == 'All cities' | city == input$city) %>%
+      filter(measurement == input$measurement)
   }
+  # emissions %>% filter(measurement == input$measurement)
 })
 
 
@@ -138,44 +140,88 @@ output$plot <- renderPlotly({
 })
 
 
-region_type <- reactive({
+# region_type <- reactive({
+#   if(input$region_type == 'Countries'){
+#     countries <- c("World", unique(emissions_all()$country))
+#     countries <- countries[!is.na(countries)]
+#     pollutants <- c("NOx"="nox","SO2"="so2","CH4"="ch4","CO2"="co2")
+#     color_bys <- c("Country"="country", "Sector"="sector", "Fuel"="fuel")
+#     group_bys <- c("Country"="country", "Sector"="sector", "Fuel"="fuel")
+#     # updateSelectInput(inputId = 'select_country', choices = countries)
+#     # updateSelectInput(inputId = 'select_city', choices = c(''))
+#     list('countries' = countries, 'pollutants' = pollutants, 'color_bys' = color_bys, 'group_bys' = group_bys)
+#   } else {
+#     cities <- c('All cities',
+#                 sort(unique(emissions_cities()$city)))
+#     pollutants <- c("NOx"="nox","SO2"="so2")
+#     color_bys <- c("City"="city", "Sector"="sector")
+#     group_bys <- c("City"="city", "Sector"="sector")
+#     # updateSelectInput(inputId = 'select_city', choices = cities)
+#     # updateSelectInput(inputId = 'select_country', choices = c(''))
+#     list('cities' = cities, 'pollutants' = pollutants, 'color_bys' = color_bys, 'group_bys' = group_bys)
+#   }
+#   # updateSelectInput(inputId = 'pollutant', choices = pollutants)
+#   # updateSelectInput(inputId = 'color_by', choices = color_bys)
+#   # updateSelectInput(inputId = 'group_by', choices = group_bys)
+# })
+
+# change other input fields based on region_type
+
+# observeEvent(region_type(), {
+#   choices <- region_type()
+#   if(input$region_type == 'Countries'){
+#     updateSelectInput(inputId = 'country', choices = choices$countries)
+#     updateSelectInput(inputId = 'city', choices = c(''))
+#   } else {
+#     updateSelectInput(inputId = 'city', choices = choices$cities)
+#     updateSelectInput(inputId = 'country', choices = c(''))
+#   }
+#   updateSelectInput(inputId = 'pollutant', choices = choices$pollutants)
+#   updateSelectInput(inputId = 'color_by', choices = choices$color_bys, selected = choices$color_bys[2])
+#   updateSelectInput(inputId = 'group_by', choices = choices$group_bys)
+# })
+
+output$selectCountry <- renderUI({
   if(input$region_type == 'Countries'){
-    countries <- c("World", unique(emissions_all()$country))
-    countries <- countries[!is.na(countries)]
     pollutants <- c("NOx"="nox","SO2"="so2","CH4"="ch4","CO2"="co2")
     color_bys <- c("Country"="country", "Sector"="sector", "Fuel"="fuel")
     group_bys <- c("Country"="country", "Sector"="sector", "Fuel"="fuel")
-    # updateSelectInput(inputId = 'select_country', choices = countries)
-    # updateSelectInput(inputId = 'select_city', choices = c(''))
-    list('countries' = countries, 'pollutants' = pollutants, 'color_bys' = color_bys, 'group_bys' = group_bys)
+    updateSelectInput(inputId = 'pollutant', choices = pollutants)
+    updateSelectInput(inputId = 'color_by', choices = color_bys, selected = 'sector')
+    updateSelectInput(inputId = 'group_by', choices = group_bys)
+
+    countries <- c("World", unique(emissions_all()$country))
+    countries <- countries[!is.na(countries)]
+    selectInput('country', 'Country', choices = countries)
+    # pollutants <- c("NOx"="nox","SO2"="so2","CH4"="ch4","CO2"="co2")
+    # color_bys <- c("Country"="country", "Sector"="sector", "Fuel"="fuel")
+    # group_bys <- c("Country"="country", "Sector"="sector", "Fuel"="fuel")
+    # # updateSelectInput(inputId = 'select_country', choices = countries)
+    # # updateSelectInput(inputId = 'select_city', choices = c(''))
+    # list('countries' = countries, 'pollutants' = pollutants, 'color_bys' = color_bys, 'group_bys' = group_bys)
   } else {
-    cities <- c('All cities',
-                sort(unique(emissions_cities()$city)))
-    pollutants <- c("NOx"="nox","SO2"="so2")
+    pollutants <- c("NOx"="nox","SO2"="so2","CO2"="co2")
     color_bys <- c("City"="city", "Sector"="sector")
     group_bys <- c("City"="city", "Sector"="sector")
+    updateSelectInput(inputId = 'pollutant', choices = pollutants)
+    updateSelectInput(inputId = 'color_by', choices = color_bys, selected = 'sector')
+    updateSelectInput(inputId = 'group_by', choices = group_bys)
+
+    cities <- c('All cities',
+                sort(unique(emissions_cities()$city)))
+    selectInput('city', 'City', choices = cities)
+
     # updateSelectInput(inputId = 'select_city', choices = cities)
     # updateSelectInput(inputId = 'select_country', choices = c(''))
-    list('cities' = cities, 'pollutants' = pollutants, 'color_bys' = color_bys, 'group_bys' = group_bys)
+    # list('cities' = cities, 'pollutants' = pollutants, 'color_bys' = color_bys, 'group_bys' = group_bys)
   }
   # updateSelectInput(inputId = 'pollutant', choices = pollutants)
   # updateSelectInput(inputId = 'color_by', choices = color_bys)
   # updateSelectInput(inputId = 'group_by', choices = group_bys)
 })
 
-# change other input fields based on region_type
-observeEvent(region_type(), {
-  choices <- region_type()
-  if(input$region_type == 'Countries'){
-    updateSelectInput(inputId = 'country', choices = choices$countries)
-    updateSelectInput(inputId = 'city', choices = c(''))
-  } else {
-    updateSelectInput(inputId = 'city', choices = choices$cities)
-    updateSelectInput(inputId = 'country', choices = c(''))
+output$measurement <- renderUI({
+  if(input$region_type == 'C40 Cities'){
+    selectInput('measurement', 'Measurement', choices = c('Absolute', 'Per capita'))
   }
-  updateSelectInput(inputId = 'pollutant', choices = choices$pollutants)
-  updateSelectInput(inputId = 'color_by', choices = choices$color_bys, selected = choices$color_bys[2])
-  updateSelectInput(inputId = 'group_by', choices = choices$group_bys)
 })
-
-
