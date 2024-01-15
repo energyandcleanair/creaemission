@@ -78,7 +78,7 @@ output$plot <- renderPlotly({
   chart_type <- input$chart_type
   # e <- emissions() %>% filter(year==2019)
   e <- if(input$region_type == 'Countries'){
-    emissions() %>% filter(year==2019)
+    emissions() %>% filter(year == input$year)
   } else {
     emissions()
   }
@@ -234,4 +234,8 @@ output$measurement <- renderUI({
   if(input$region_type == 'C40 Cities'){
     selectInput('measurement', 'Measurement', choices = c('Absolute', 'Per capita'))
   }
+})
+
+output$year <- renderUI({
+  selectInput('year', 'Year', choices = c(2000:2022), selected = 2019)
 })
