@@ -19,6 +19,7 @@ library(scales)
 library(raster)
 library(mapview)
 library(rgdal)
+library(glue)
 sel <- dplyr::select
 source('data.R')
 # source('utils.R')
@@ -42,7 +43,8 @@ group_bys <- c("Country"="country", "Sector"="sector", "Fuel"="fuel")
 #                  "Bar (Vertical)"="barv",
 #                  "Lines"="line",
 #                  "Areas"="area")
-chart_types <- c("Bar (Horizontal)"="barh")
+chart_types <- c("Bar (Horizontal)"="barh",
+                 "Timeseries (area)"="area")
 topn <- 20 # How many rows max in chart
 
 ceds_sectors <- c("Total"="total", "Agriculture"="agri", "Energy"="energy",

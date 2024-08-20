@@ -39,34 +39,41 @@ output$download_csv <- downloadHandler(
 # })
 
 # Output Elements --------------------------------------
-emissions_all <- reactive({
-  get_emissions()
+
+
+# emissions_all <- reactive({
+#   get_emissions()
+# })
+#
+#
+# emissions_cities <- reactive({
+#   get_emissions_cities()
+# })
+
+emissions_year <- reactive({
+  req(input$year)
+  get_emissions(input$year)
 })
-
-
-emissions_cities <- reactive({
-  get_emissions_cities()
-})
-
 
 emissions <- reactive({
-  req(emissions_all())
+  # req(emissions_all())
   req(input$pollutant)
   req(input$country)
-  print(input$pollutant)
+  req(emissions_year())
+  # print(input$pollutant)
   # emissions_all() %>%
   #   filter(poll==input$pollutant) %>%
   #   filter(input$country=="World" | country==input$country)
-  emissions <- if(input$region_type == 'Countries'){
-    emissions_all() %>%
-      filter(poll==input$pollutant) %>%
-      filter(input$country=="World" | country==input$country)
-  } else {
-    emissions_cities() %>%
-      filter(poll == input$pollutant) %>%
-      filter(input$city == 'All cities' | city %in% input$city) %>%
-      filter(measurement == input$measurement)
-  }
+  # emissions <- if(input$region_type == 'Countries'){
+  emissions_year() %>%
+    filter(poll==input$pollutant) %>%
+    filter(input$country=="World" | country==input$country)
+  # } else {
+  #   emissions_cities() %>%
+  #     filter(poll == input$pollutant) %>%
+  #     filter(input$city == 'All cities' | city %in% input$city) %>%
+  #     filter(measurement == input$measurement)
+  # }
   # emissions %>% filter(measurement == input$measurement)
 })
 
@@ -77,20 +84,23 @@ output$plot <- renderPlotly({
   color_by <- input$color_by
   chart_type <- input$chart_type
   # e <- emissions() %>% filter(year==2019)
-  e <- if(input$region_type == 'Countries'){
-    emissions() %>% filter(year == input$year)
-  } else {
-    emissions()
-  }
 
-  req(e)
+  req(emissions_year())
   req(group_by)
   req(color_by)
   req(chart_type)
 
+  e <- emissions_year()
+
+  # Assert that all units start with kt
+  if(!all(grepl("^kt", e$units))){
+    stop("Not all units are in kt")
+  }
+  unit_suffix <- "kt"
   e <- e %>%
     group_by_at(c(group_by, color_by, "year")) %>%
     summarise(value=sum(value, na.rm=T))
+
 
   if(chart_type=="barh"){
 
@@ -114,15 +124,15 @@ output$plot <- renderPlotly({
     # getPalette = colorRampPalette(rcrea::pal_crea)
     getPalette = colorRampPalette(brewer.pal(12, "Paired"))
 
-    if(input$region_type == 'C40 Cities'){
-      if(input$measurement == 'Absolute'){
-        unit_suffix <- ' kt'
-      } else {
-        unit_suffix <- ' kg'
-      }
-    } else {
-      unit_suffix <- ' kt'
-    }
+    # if(input$region_type == 'C40 Cities'){
+    #   if(input$measurement == 'Absolute'){
+    #     unit_suffix <- ' kt'
+    #   } else {
+    #     unit_suffix <- ' kg'
+    #   }
+    # } else {
+      # unit_suffix <- ' kt'
+    # }
 
 
     plt <- e_plt %>%
@@ -191,16 +201,41 @@ output$plot <- renderPlotly({
 #   updateSelectInput(inputId = 'group_by', choices = choices$group_bys)
 # })
 
+
+output$selectYear <- renderUI({
+  req(input$chart_type)
+  # selectInput("year", "Year:", multiple=F, choices = rev(get_emissions_years()), selected=max(get_emissions_years())),
+  years <- get_emissions_years()
+  if(input$chart_type == 'barh'){
+    return(selectInput("year", "Year:", multiple=F, choices = rev(years), selected=max(years)))
+  }
+  if(input$chart_type == 'area'){
+    # No select shown
+    return(NULL)
+  }
+  return(NULL)
+})
+
 output$selectCountry <- renderUI({
-  if(input$region_type == 'Countries'){
-    pollutants <- c("NOx"="nox","SO2"="so2","CH4"="ch4","CO2"="co2")
+  # if(input$region_type == 'Countries'){
+    req(emissions_year())
+    pollutants <- c("NOx"="NOx",
+                    "SO2"="SO2",
+                    "CH4"="CH4",
+                    "CO2"="CO2",
+                    "NH3"="NH3",
+                    "NMVOC"="NMVOC",
+                    "BC"="BC",
+                    "CO"="CO",
+                    "N2O"="N2O"
+                    )
     color_bys <- c("Country"="country", "Sector"="sector", "Fuel"="fuel")
     group_bys <- c("Country"="country", "Sector"="sector", "Fuel"="fuel")
     updateSelectInput(inputId = 'pollutant', choices = pollutants)
     updateSelectInput(inputId = 'color_by', choices = color_bys, selected = 'sector')
     updateSelectInput(inputId = 'group_by', choices = group_bys)
 
-    countries <- c("World", unique(emissions_all()$country))
+    countries <- c("World", unique(emissions_year()$country))
     countries <- countries[!is.na(countries)]
     selectInput('country', 'Country', choices = countries)
     # pollutants <- c("NOx"="nox","SO2"="so2","CH4"="ch4","CO2"="co2")
@@ -209,33 +244,24 @@ output$selectCountry <- renderUI({
     # # updateSelectInput(inputId = 'select_country', choices = countries)
     # # updateSelectInput(inputId = 'select_city', choices = c(''))
     # list('countries' = countries, 'pollutants' = pollutants, 'color_bys' = color_bys, 'group_bys' = group_bys)
-  } else {
-    pollutants <- c("NOx"="nox","SO2"="so2","CO2"="co2")
-    color_bys <- c("City"="city", "Sector"="sector")
-    group_bys <- c("City"="city", "Sector"="sector")
-    updateSelectInput(inputId = 'pollutant', choices = pollutants)
-    updateSelectInput(inputId = 'color_by', choices = color_bys, selected = 'sector')
-    updateSelectInput(inputId = 'group_by', choices = group_bys)
-
-    cities <- c('All cities',
-                sort(unique(emissions_cities()$city)))
-    selectInput('city', 'City', choices = cities, selected = 'All cities', multiple = T)
+  # } else {
+  #   pollutants <- c("NOx"="nox","SO2"="so2","CO2"="co2")
+  #   color_bys <- c("City"="city", "Sector"="sector")
+  #   group_bys <- c("City"="city", "Sector"="sector")
+  #   updateSelectInput(inputId = 'pollutant', choices = pollutants)
+  #   updateSelectInput(inputId = 'color_by', choices = color_bys, selected = 'sector')
+  #   updateSelectInput(inputId = 'group_by', choices = group_bys)
+  #
+  #   cities <- c('All cities',
+  #               sort(unique(emissions_cities()$city)))
+  #   selectInput('city', 'City', choices = cities, selected = 'All cities', multiple = T)
 
     # updateSelectInput(inputId = 'select_city', choices = cities)
     # updateSelectInput(inputId = 'select_country', choices = c(''))
     # list('cities' = cities, 'pollutants' = pollutants, 'color_bys' = color_bys, 'group_bys' = group_bys)
-  }
+  # }
   # updateSelectInput(inputId = 'pollutant', choices = pollutants)
   # updateSelectInput(inputId = 'color_by', choices = color_bys)
   # updateSelectInput(inputId = 'group_by', choices = group_bys)
 })
 
-output$measurement <- renderUI({
-  if(input$region_type == 'C40 Cities'){
-    selectInput('measurement', 'Measurement', choices = c('Absolute', 'Per capita'))
-  }
-})
-
-output$year <- renderUI({
-  selectInput('year', 'Year', choices = c(2000:2022), selected = 2019)
-})
