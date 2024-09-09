@@ -15,7 +15,7 @@ tabPanel("Charts",
              # selectInput('city', 'City', multiple = F, choices = NULL),
              uiOutput("selectCountry"),
              # selectInput('measurement', 'Measurement', multiple = F, choices = c('Absolute', 'Per capita')),
-             selectInput("pollutant", "Pollutant:", multiple=F, choices = pollutants, selected=pollutants[1]),
+             selectInput("pollutant", "Species:", multiple=F, choices = pollutants, selected=pollutants[1]),
              selectInput("color_by", "Color by:", multiple=F, choices = color_bys, selected=color_bys[2]),
              selectInput("group_by", "Group by:", multiple=F, choices = group_bys, selected=group_bys[1]),
 
