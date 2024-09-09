@@ -12,55 +12,33 @@ output$download_csv <- downloadHandler(
   }
 )
 
-# output$selectCountry <- renderUI({
-#   req(emissions_all())
-#
-#   countries <- c("World", unique(emissions_all()$country))
-#   countries <- countries[!is.na(countries)]
-#
-#   selectInput("country", "Country",
-#               multiple=F,
-#               choices=countries,
-#               selected="world")
-#
-#
-# })
-#
-# output$selectCity <- renderUI({
-#   req(emissions_cities)
-#
-#   cities <- c('None', 'All cities',
-#               sort(unique(emissions_cities()$city)))
-#
-#   selectInput('city', 'City',
-#               multiple = F,
-#               choices = cities,
-#               selected = 'None')
-# })
-
-# Output Elements --------------------------------------
-
-
-# emissions_all <- reactive({
-#   get_emissions()
-# })
-#
-#
-# emissions_cities <- reactive({
-#   get_emissions_cities()
-# })
-
 
 emissions_year <- reactive({
   req(input$year)
-  get_emissions(input$year)
+  get_emissions_by_year(input$year)
 })
 
 
 emissions_years <- reactive({
-  lapply(seq(2000, 2022), get_emissions) %>%
-    bind_rows()
+  req(input$country)
+  isos <- input$country
+  if("all" %in% isos){
+    # Return topn countries
+    isos_top_n <- get_emissions_by_year(year=2022) %>%
+      group_by(iso) %>%
+      summarise(value=sum(value, na.rm=T)) %>%
+      arrange(desc(value)) %>%
+      head(topn) %>%
+      pull(iso)
+
+    # Remove all and replace with topn
+    isos <- isos[isos!="all"]
+    isos <- c(isos_top_n, isos)
+    isos <- unique(isos)
+  }
+  get_emissions_by_countries(isos=isos)
 })
+
 
 emissions <- reactive({
   # req(emissions_all())
@@ -77,9 +55,19 @@ emissions <- reactive({
     emissions_years()
   }
 
+  # Add World
+  e <- e %>%
+    bind_rows(
+      e %>%
+        group_by(poll, sector, fuel, units, year) %>%
+        summarise(value=sum(value, na.rm=T)) %>%
+        mutate(country="World", iso="world")
+    )
+
+
   e %>%
     filter(poll==input$pollutant) %>%
-    filter(input$country=="World" | country==input$country) %>%
+    filter((input$country=="all" & iso != "world")| iso==input$country) %>%
     mutate(sector=clean_sector_name(sector),
            fuel=clean_fuel_name(fuel),
            country=clean_country_name(country))
@@ -107,7 +95,8 @@ output$plot <- renderPlotly({
   unit_suffix <- "kt"
   e <- e %>%
     group_by_at(c(group_by, color_by, "year")) %>%
-    summarise(value=sum(value, na.rm=T))
+    summarise(value=sum(value, na.rm=T)) %>%
+    ungroup()
 
 
   if(chart_type=="barh"){
@@ -171,8 +160,13 @@ output$plot <- renderPlotly({
       head(topn) %>%
       pull(group)
 
-    e_plt <- e[e$group%in%topn_groups,] %>%
-      filter(value>0)
+    e_plt <- e[e$group%in%topn_groups,]
+
+    # Remove those who only have zeros or na
+    e_plt <- e_plt %>%
+      group_by(group, color) %>%
+      filter(sum(value, na.rm=T)>0) %>%
+      ungroup()
 
     e_plt$group <- factor(e_plt$group, levels=rev(topn_groups))
 
@@ -181,10 +175,12 @@ output$plot <- renderPlotly({
 
 
     plt <- e_plt %>%
+      mutate(color = reorder(color, value)) %>%
+      ungroup() %>%
       ggplot(aes(year, value)) +
-      geom_area(aes(fill=reorder(color, value),
-                    text=paste(paste0(color), sprintf("%.2f kt", value), sep="\n"))) +
-      # geom_text(aes(label=ifelse(value_pct<0.01,"",scales::percent(value_pct, accuracy=.1))), vjust=1, nudge_y = -500, col="white", size=4) +
+      geom_area(aes(fill=color,
+                    text=paste(paste0(color)))
+                ) +
       rcrea::theme_crea() +
       scale_y_continuous(expand = expansion(mult=c(0, 0.1)),
                          labels = scales::comma_format(suffix=unit_suffix)) +
@@ -222,27 +218,19 @@ output$selectYear <- renderUI({
 })
 
 output$selectCountry <- renderUI({
-  # if(input$region_type == 'Countries'){
-    req(emissions_year())
-    pollutants <- c("NOx"="NOx",
-                    "SO2"="SO2",
-                    "CH4"="CH4",
-                    "CO2"="CO2",
-                    "NH3"="NH3",
-                    "NMVOC"="NMVOC",
-                    "BC"="BC",
-                    "CO"="CO",
-                    "N2O"="N2O"
-                    )
-    color_bys <- c("Country"="country", "Sector"="sector", "Fuel"="fuel")
-    group_bys <- c("Country"="country", "Sector"="sector", "Fuel"="fuel")
-    updateSelectInput(inputId = 'pollutant', choices = pollutants)
-    updateSelectInput(inputId = 'color_by', choices = color_bys, selected = 'sector')
-    updateSelectInput(inputId = 'group_by', choices = group_bys)
+  req(emissions_year())
 
-    countries <- c("World", unique(emissions_year()$country))
-    countries <- countries[!is.na(countries)]
-    selectInput('country', 'Country', choices = countries)
+  countries <- emissions_year() %>%
+    # We'll want World at the top with All
+    filter(iso!="world", !is.na(country)) %>%
+    arrange(country) %>%
+    distinct(country, iso) %>%
+    # Transformed to named vector iso=country
+    tibble::deframe()
+
+  countries <- c("All"="all", "World"="world", countries)
+  # countries <- countries[!is.na(countries)]
+  selectInput('country', 'Country', choices = countries, multiple=T, selected='all')
 })
 
 
