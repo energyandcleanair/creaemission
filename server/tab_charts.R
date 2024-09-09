@@ -67,7 +67,7 @@ emissions <- reactive({
 
   e %>%
     filter(poll==input$pollutant) %>%
-    filter((input$country=="all" & iso != "world")| iso==input$country) %>%
+    filter(("all" %in% input$country & iso != "world") | iso %in% input$country) %>%
     mutate(sector=clean_sector_name(sector),
            fuel=clean_fuel_name(fuel),
            country=clean_country_name(country))
@@ -189,7 +189,7 @@ output$plot <- renderPlotly({
       labs(caption="Source: CREA analysis based on CEDS.",
            y=NULL,
            x=NULL) +
-      facet_wrap(~group, scales="free_y")
+      facet_wrap(~group, scales="free")
 
   }
 
@@ -236,7 +236,7 @@ output$selectCountry <- renderUI({
 
 
 clean_fuel_name <- function(x){
-  gsub("_", "", tolower(x)) %>%
+  gsub("_", " ", tolower(x)) %>%
   stringr::str_to_sentence()
 }
 
