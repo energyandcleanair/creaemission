@@ -162,13 +162,14 @@ output$plot <- renderPlotly({
 
     e_plt <- e[e$group%in%topn_groups,]
 
+
     # Remove those who only have zeros or na
     e_plt <- e_plt %>%
       group_by(group, color) %>%
       filter(sum(value, na.rm=T)>0) %>%
       ungroup()
 
-    e_plt$group <- factor(e_plt$group, levels=rev(topn_groups))
+    e_plt$group <- factor(e_plt$group, levels=topn_groups)
 
     colourCount = length(unique(e_plt[[color_by]]))
     getPalette = colorRampPalette(brewer.pal(12, "Paired"))
