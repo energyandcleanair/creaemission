@@ -5,13 +5,6 @@ deployShinyApp <- function() {
   if(!require(dotenv)) install.packages('dotenv')
   if(!require(devtools)) install.packages('devtools')
 
-  # # Basically telling ShinyApps where to get creahia
-  # urls <- c(
-  #   # "trafficonese/leaflet.extras2",
-  #   "energyandcleanair/creahelpers",
-  #   "energyandcleanair/rcrea")
-  # remotes::install_github(urls, force=T, upgrade="never")
-
   try(dotenv::load_dot_env())
   try(readRenviron(".Renviron"))
 
@@ -20,7 +13,7 @@ deployShinyApp <- function() {
                             secret=Sys.getenv("SHINYAPP_SECRET"))
   # # Deploy production
   rsconnect::deployApp(".",
-                       appName="c40_gas",
+                       appName="ceds",
                        account = Sys.getenv("SHINYAPP_ACCOUNT"),
                        forceUpdate = T)
 
