@@ -81,7 +81,8 @@ emissions <- reactive({
     filter(poll==input$pollutant) %>%
     filter(input$country=="World" | country==input$country) %>%
     mutate(sector=clean_sector_name(sector),
-           fuel=clean_fuel_name(fuel))
+           fuel=clean_fuel_name(fuel),
+           country=clean_country_name(country))
 
 })
 
@@ -268,4 +269,11 @@ clean_sector_name <- function(x){
     gsub("^ ", "", .) %>%
     # add [sector_id] at the end
     paste0(" [", sector_id, "]")
+}
+
+
+clean_country_name <- function(x){
+  # replace NA with International
+  x[is.na(x)] <- "International"
+  x
 }
