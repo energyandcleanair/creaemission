@@ -35,12 +35,14 @@ download_nc <- function(year, pollutant, dir){
   }
 
   # try downloading 5 times
-  for(i in 1:5){
+  for(i in 1:10){
     tryCatch({
       download.file(url, dest_file)
       break
     }, error = function(e){
       message(glue("Error downloading {url}"))
+      file.remove(dest_file)
+      Sys.sleep(5)
     })
   }
 
