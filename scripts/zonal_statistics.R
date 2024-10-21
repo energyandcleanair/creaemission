@@ -1,28 +1,27 @@
-
-
-
-
-
 extract_provincial_data <- function(year=2022,
                                     pollutants=c("NOx", "BC", "CH4", "CO", "CO2", "N2O", "NH3", "NMVOC", "OC", "SO2"),
                                     country_id="ID",
                                     level=1,
-                                    res="low"
+                                    res="low",
+                                    buffer_into_sea_km=20
                                     ){
 
   library(glue)
   library(ncdf4)
   library(tidyverse)
 
+
   dir <- "data/netcdf"
   emissions <- pbapply::pblapply(pollutants, function(pollutant){
     dest_file <- download_nc(year, pollutant, dir)
-    extract_emission(dest_file, country_id, level, res) %>%
+    extract_emission(dest_file, country_id, level, res, buffer_into_sea_km) %>%
      mutate(pollutant=pollutant,
-            year=year)
+            year=year,
+            res=res)
   }) %>%
     bind_rows()
 
+  return(emissions)
 }
 
 download_nc <- function(year, pollutant, dir){
@@ -49,12 +48,16 @@ download_nc <- function(year, pollutant, dir){
   return(dest_file)
 }
 
-extract_emission <- function(file, country_id, level=1, res="full"){
+extract_emission <- function(file, country_id, level=1, res="full", buffer_into_sea_km=20){
 
   # Get geometries
   readRenviron(".Renviron")
   vect <- creahelpers::get_adm(level=level, res=res, iso2s=country_id) %>%
     terra::vect()
+
+  if(buffer_into_sea_km > 0){
+    vect <- buffer_into_sea(vect, id_col=glue("GID_{level}"), buffer_into_sea_km)
+  }
 
   # Extract the emission data
   r <- terra::rast(file)
@@ -68,12 +71,12 @@ extract_emission <- function(file, country_id, level=1, res="full"){
   rs <- lapply(sector_codes, function(sector_code){
     months <- 1:12
     terra::subset(r, glue("{sector_code}_{months}")) %>%
-      terra::mean() * area_r_km2
+      terra::mean() * area_r_m2
   })
 
   # extract zonal mean
   zonal_mean <- lapply(rs, function(r_sector){
-    terra::extract(r_sector, vect, fun="sum", exact=T, ID=F)
+    terra::extract(r_sector, terra::makeValid(vect), fun="sum", exact=T, ID=F)
   })
 
   zonal_emission_kt_per_year <- lapply(zonal_mean, function(z){
@@ -84,14 +87,16 @@ extract_emission <- function(file, country_id, level=1, res="full"){
   do.call(cbind, zonal_emission_kt_per_year) %>%
     as.data.frame() %>%
     setNames(sector_names) %>%
-    cbind(vect[,c("GID_0", "NAME_1")]) %>%
-    gather(key="sector_code", value="emission", -c("GID_0","NAME_1"))
+    cbind(vect[,c("GID_0", "GID_1", "NAME_1")]) %>%
+    gather(key="sector_code", value="emission", -c("GID_0", "GID_1", "NAME_1")) %>%
+    tibble()
 }
 
-validate_emissions <- function(emissions, year){
+validate_emissions <- function(emissions){
 
-  national_emissions <- readRDS(glue("data/v2024_04_01/ceds_emissions_{year}.RDS"))
-
+  years <- unique(emissions$year)
+  national_emissions <- lapply(years, function(y) readRDS(glue("data/v2024_04_01/ceds_emissions_{y}.RDS"))) %>%
+    bind_rows()
 
   # Check if the sum of provincial emissions is equal to national emissions
   emissions %>%
@@ -101,53 +106,52 @@ validate_emissions <- function(emissions, year){
       national_emissions %>% distinct(poll, iso),
       relationship = "many-to-many"
     ) %>%
-    group_by(iso, poll) %>%
+    group_by(iso, poll, year) %>%
     summarise(emission=sum(emission)) %>%
     mutate(level="provincial") %>%
     bind_rows(
       national_emissions %>%
-        select(iso, poll, emission=value) %>%
+        select(iso, poll, year, emission=value) %>%
         mutate(level="national") %>%
         inner_join(
-          prov_emissions %>% distinct(poll=pollutant, iso=tolower(GID_0)),
+          emissions %>% distinct(poll=pollutant, iso=tolower(GID_0)),
           relationship = "many-to-many"
         ) %>%
-        group_by(iso, poll, level) %>%
+        group_by(iso, poll, level, year) %>%
         summarise(emission=sum(emission))
     ) %>%
     ungroup() %>%
     spread(key="level", value="emission")
+}
 
+buffer_into_sea <- function(vect, id_col, buffer_km=20)
+{
 
-  # Check if the sum of provincial emissions is equal to national emissions
-  emissions %>%
-    mutate(iso=tolower(GID_0)) %>%
-    rename(poll=pollutant) %>%
-    inner_join(
-      national_emissions %>% distinct(poll, iso),
-      relationship = "many-to-many"
-    ) %>%
-    group_by(iso, poll, sector=sector_code) %>%
-    summarise(emission=sum(emission)) %>%
-    mutate(level="provincial") %>%
-    bind_rows(
-      national_emissions %>%
-        select(iso, poll, emission=value, sector) %>%
-        mutate(level="national") %>%
-        inner_join(
-          prov_emissions %>% distinct(poll=pollutant, iso=tolower(GID_0)),
-          relationship = "many-to-many"
-        ) %>%
-        group_by(iso, poll, level, sector) %>%
-        summarise(emission=sum(emission))
-    ) %>%
-    ungroup() %>%
-    ggplot() +
-    geom_col(aes(x=level, y=emission, fill=sector), show.legend = F) +
-    facet_wrap(~poll) -> plt
+  # Prepare
+  g_sf <- vect %>%
+    sf::st_as_sf() %>%
+    sf::st_transform(3857) %>%
+    sf::st_make_valid()
 
-  library(plotly)
-  ggplotly(plt)
+  # Get coastal buffer
+  g_coast <- cartomisc::regional_seas(
+    g_sf,
+    group = id_col,
+    dist = buffer_km * 1000)
 
+  # Join back and reproject
+  g_combined <- bind_rows(g_sf, g_coast) %>%
+    dplyr::group_by_at(id_col) %>%
+    summarise() %>%
+    sf::st_transform(sf::st_crs(sf::st_as_sf(vect))) %>%
+    sf::st_make_valid() %>%
+    filter(!is.na(!!rlang::sym(id_col))) %>%
+    left_join(g_sf %>%
+                as.data.frame() %>%
+                dplyr::select(-geometry),
+              by = id_col) %>%
+    terra::vect() %>%
+    terra::makeValid()
 
+  return(g_combined)
 }
