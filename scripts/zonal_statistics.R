@@ -92,14 +92,16 @@ extract_emission <- function(file, country_id, level=1, res="full", buffer_into_
     tibble()
 }
 
-validate_emissions <- function(emissions){
+validate_emissions <- function(emissions, include_shipping=TRUE){
 
   years <- unique(emissions$year)
   national_emissions <- lapply(years, function(y) readRDS(glue("data/v2024_04_01/ceds_emissions_{y}.RDS"))) %>%
-    bind_rows()
+    bind_rows() %>%
+    filter(include_shipping | !grepl("navigation|shipping", sector, ignore.case=T))
 
   # Check if the sum of provincial emissions is equal to national emissions
   emissions %>%
+    filter(include_shipping | !grepl("shipping", sector_code, ignore.case=T)) %>%
     mutate(iso=tolower(GID_0)) %>%
     rename(poll=pollutant) %>%
     inner_join(
@@ -121,7 +123,8 @@ validate_emissions <- function(emissions){
         summarise(emission=sum(emission))
     ) %>%
     ungroup() %>%
-    spread(key="level", value="emission")
+    spread(key="level", value="emission") %>%
+    mutate(diff_pct=scales::percent((national-provincial)/national, accuracy=0.1))
 }
 
 buffer_into_sea <- function(vect, id_col, buffer_km=20)
