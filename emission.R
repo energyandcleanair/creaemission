@@ -23,18 +23,8 @@ get_emissions <- function(
         filter(is.null(years) | year %in% years)
     }
   }else{
-    # If only one year, we make it faster by reading yearly files
-    if(!is.null(years) && length(years)==1){
-      get_emissions_provincial_by_year(iso3s=iso3s, year=years)
-    }else{
-      get_emissions_provincial(iso3s=iso3s) %>%
-        filter(is.null(years) | year %in% years)
-    }
+      get_emissions_provincial(iso3s=iso3s, year=years)
   }
-
-
-
-
 }
 
 
@@ -50,7 +40,7 @@ get_emissions_national <- function(iso3s, years=NULL){
 
 
 get_emissions_national_by_year <- function(year, iso3s=NULL){
-  readRDS(glue("data/v2024_04_01/by_year/national/ceds_emissions_{year}.RDS")) %>%
+  readRDS(glue("data/v2024_04_01/national/by_year/ceds_emissions_{year}.RDS")) %>%
     mutate(
       country=countrycode(iso, "iso3c", "country.name",
                                custom_match=c("global"="Global"))
@@ -67,14 +57,14 @@ get_emissions_provincial <- function(years, iso3s){
   filepaths <- list.files("data/v2024_04_01/provincial", pattern=pattern, full.names=T)
   lapply(filepaths, readRDS) %>%
     bind_rows() %>%
-    mutate(iso3c=countrycode(GID_0, "iso3c", "iso3c")) %>%
     mutate(fuel="All",
-           unit="kt/year"
+           unit="kt/year",
+           iso=tolower(GID_0)
     ) %>%
     dplyr::select(
       poll=pollutant,
-      iso=iso3c,
-      sector=sector_code,
+      iso,
+      sector,
       fuel,
       units=unit,
       year,
@@ -82,26 +72,4 @@ get_emissions_provincial <- function(years, iso3s){
       country=NAME_1
     ) %>%
     filter(is.null(years) | year %in% years)
-}
-
-
-get_emissions_provincial_by_year <- function(year, iso3s){
-  lapply(tolower(iso3s), function(x){
-    readRDS(glue("data/v2024_04_01/provincial/{x}_{year}.rds"))
-  }) %>%
-    bind_rows() %>%
-    mutate(fuel="All",
-           unit="kt/year"
-           ) %>%
-    dplyr::select(
-      poll=pollutant,
-      iso=GID_0,
-      sector=sector_code,
-      fuel,
-      units=unit,
-      year,
-      value=emission,
-      country=NAME_1
-    ) %>%
-    filter(is.null(iso3s) | iso %in% iso3s)
 }

@@ -20,3 +20,9 @@ emissions_id_low %>%
   split(.$year) %>%
   imap(~write_csv(.x, glue("output/emissions_id_{.y}.csv")))
 
+
+emissions_id_low %>%
+  filter(pollutant == "SO2") %>%
+  ggplot(aes(x=factor(year), fill=sector_code)) +
+  geom_bar(aes(y=emission), position="stack", stat="identity") +
+  facet_wrap(NAME_1~pollutant)

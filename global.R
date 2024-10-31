@@ -21,7 +21,9 @@ library(mapview)
 library(rgdal)
 library(glue)
 sel <- dplyr::select
-source('data.R')
+
+# source('emission.R')
+# source('data_availability.R')
 
 
 pollutants <- c("NOx"="NOx",
@@ -39,7 +41,7 @@ group_bys <- c("Country"="country", "Sector"="sector", "Fuel"="fuel")
 
 chart_types <- c("Bar (Horizontal)"="barh",
                  "Timeseries (area)"="area")
-topn <- 20 # How many rows max in chart
+# topn <- 20 # How many rows max in chart
 
 ceds_sectors <- c("Total"="total", "Agriculture"="agri", "Energy"="energy",
                   "Industrial"="industrial", "Transportation"="transport",
