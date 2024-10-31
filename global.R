@@ -22,8 +22,8 @@ library(rgdal)
 library(glue)
 sel <- dplyr::select
 
-# source('emission.R')
-# source('data_availability.R')
+source('emission.R')
+source('data_availability.R')
 
 
 pollutants <- c("NOx"="NOx",
