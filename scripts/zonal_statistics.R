@@ -1,6 +1,6 @@
-extract_provincial_data <- function(year=2022,
+extract_provincial_data <- function(years=seq(2000,2022),
                                     pollutants=c("NOx", "BC", "CH4", "CO", "CO2", "N2O", "NH3", "NMVOC", "OC", "SO2"),
-                                    country_id="ID",
+                                    iso2s=c("ID","IN","CN"),
                                     level=1,
                                     res="low",
                                     buffer_into_sea_km=20
@@ -9,99 +9,159 @@ extract_provincial_data <- function(year=2022,
   library(glue)
   library(ncdf4)
   library(tidyverse)
+  library(terra)
 
 
-  dir <- "data/netcdf"
-  emissions <- pbapply::pblapply(pollutants, function(pollutant){
-    dest_file <- download_nc(year, pollutant, dir)
-    extract_emission(dest_file, country_id, level, res, buffer_into_sea_km) %>%
-     mutate(pollutant=pollutant,
-            year=year,
-            res=res)
+  dir_netcdf <- "cache/netcdf"
+
+  # While the functions could work with several iso2s in one go,
+  # it can reach memory / HDD limits if so
+  emissions <- lapply(iso2s, function(iso2){
+    iso3 <- countrycode::countrycode(iso2, "iso2c", "iso3c")
+    filepath <- glue("data/v2024_04_01/provincial/{tolower(iso3)}.RDS")
+    if(file.exists(filepath)) return(readRDS(filepath))
+    message(glue("Extracting emissions for {iso2}"))
+    vect <- get_vect(iso2, res, level, buffer_into_sea_km)
+    stack <- get_stack(vect, years, pollutants, dir_netcdf)
+    result <- extract_emission(vect, stack, iso2, level, res)
+    saveRDS(result, filepath)
+    return(result)
   }) %>%
     bind_rows()
+
+
+  validation <- validate_emissions(emissions, include_shipping=TRUE)
+  View(validation)
 
   return(emissions)
 }
 
-download_nc <- function(year, pollutant, dir){
 
-  dir.create(dir, showWarnings = FALSE)
-  url <- glue("https://rcdtn1.pnl.gov/data/CEDS/CEDS_release-v_2024_07_08_metadata_fix/gridded_emissions/bulk_emissions/fine_grids/{pollutant}/{pollutant}-em-anthro_input4MIPs_emissions_CMIP_CEDS-CMIP-2024-07-08_gr_{year}01-{year}12.nc")
-  dest_file <- glue("{dir}/{pollutant}_{year}.nc")
-  if(file.exists(dest_file) & file.info(dest_file)$size > 1.6e8){
-    return(dest_file)
-  }
-
-  # try downloading 5 times
-  for(i in 1:10){
-    tryCatch({
-      download.file(url, dest_file)
-      break
-    }, error = function(e){
-      message(glue("Error downloading {url}"))
-      file.remove(dest_file)
-      Sys.sleep(5)
-    })
-  }
-
-  return(dest_file)
-}
-
-extract_emission <- function(file, country_id, level=1, res="full", buffer_into_sea_km=20){
-
-  # Get geometries
-  readRenviron(".Renviron")
-  vect <- creahelpers::get_adm(level=level, res=res, iso2s=country_id) %>%
+get_vect <- function(iso2s, res, level, buffer_into_sea_km){
+  vect <- creahelpers::get_adm(level=level, res=res, iso2s=iso2s) %>%
     terra::vect()
 
   if(buffer_into_sea_km > 0){
+    message("Extending provinces into sea")
     vect <- buffer_into_sea(vect, id_col=glue("GID_{level}"), buffer_into_sea_km)
   }
+  return(vect)
+}
 
-  # Extract the emission data
-  r <- terra::rast(file)
-  sector_codes <- terra::varnames(r)
-  sector_names <- terra::longnames(r)
-  unit <- unique(terra::units(r))
+
+#' Take a rast from a CEDS file and average it by year/sector
+#'
+#' @param r
+#'
+#' @return
+#' @export
+#'
+#' @examples
+average_by_year <- function(r){
+  indexes <- rep(1:(terra::nlyr(r)/12), each=12)
+  lapply(terra::split(r, indexes),
+                             function(x){
+                               name <- names(x)[1]
+                               # remove month from name (or or two digits)
+                               name <- str_remove(name, "_\\d{1,2}")
+                               terra::mean(x) %>%
+                                 `names<-`(name)
+                             }) %>%
+    terra::rast()
+}
+
+get_stack <- function(vect, years, pollutants, dir){
+
+  files <- tidyr::crossing(year=years, pollutant=pollutants) %>%
+    rowwise() %>%
+    mutate(file=download_nc(year, pollutant, dir))
+
+  stack <- pbapply::pbmapply(
+    function(file, year, pollutant){
+      r <- terra::rast(file)
+      r %>%
+        terra::crop(vect) %>%
+        average_by_year() %>%
+        `names<-`(paste0(names(.), "_", year, "_", pollutant)) %>%
+        `varnames<-`(varnames(r)) %>%
+        `longnames<-`(longnames(r)) %>%
+        `units<-`(unique(units(r)))
+    },
+    files$file, files$year, files$pollutant
+  )
+
+  stack <- terra::rast(unname(stack))
+  return(stack)
+}
+
+
+extract_emission <- function(vect, stack, iso2s, level=1, res="low", buffer_into_sea_km=20){
+
+
+  message(glue("Extracting emissions for {iso2s}"))
+
+  # Get geometries
+  readRenviron(".Renviron")
+
+  sector_codes <- terra::varnames(stack)
+  sector_names <- terra::longnames(stack)
+  unit <- unique(terra::units(stack))
   if(unit != "kg m-2 s-1") stop("Unit is not kg m-2 s-1")
 
-  area_r_m2 <- terra::cellSize(r, unit="m")
 
-  rs <- lapply(sector_codes, function(sector_code){
-    months <- 1:12
-    terra::subset(r, glue("{sector_code}_{months}")) %>%
-      terra::mean() * area_r_m2
-  })
 
-  # extract zonal mean
-  zonal_mean <- lapply(rs, function(r_sector){
-    terra::extract(r_sector, terra::makeValid(vect), fun="sum", exact=T, ID=F)
-  })
 
-  zonal_emission_kt_per_year <- lapply(zonal_mean, function(z){
-    z * 365 * 24 * 3600 / 1e6
-  })
+  # Convert to kg/s and extract statistics
+  area_r_m2 <- terra::cellSize(stack, unit="m")
+  message("Converting from kg/m2/s to kg/s")
+  stack_kg_s <- stack * area_r_m2
 
-  # cbind all
-  do.call(cbind, zonal_emission_kt_per_year) %>%
+  message("Extracting zonal statistics")
+  zonal_mean <- terra::extract(stack_kg_s, terra::makeValid(vect), fun="sum", ID=T, exact=T)
+
+
+  emissions <- as_tibble(zonal_mean, .name_repair="minimal") %>%
+    pivot_longer(cols=-c("ID"),
+                 names_to="s_y_p",
+                 values_to="emission") %>%
+    mutate(sector_code=str_split(s_y_p, "_", simplify=T)[,1],
+           year=as.integer(str_split(s_y_p, "_", simplify=T)[,2]),
+           pollutant=str_split(s_y_p, "_", simplify=T)[,3]) %>%
+    dplyr::select(ID, sector_code, year, pollutant, emission)
+
+  #GID_X and NAME_X for X in 0:level
+  colnames <- setdiff(c(paste0("GID_", 0:level), paste0("NAME_", 0:level)), "NAME_0")
+
+  vect %>%
     as.data.frame() %>%
-    setNames(sector_names) %>%
-    cbind(vect[,c("GID_0", "GID_1", "NAME_1")]) %>%
-    gather(key="sector_code", value="emission", -c("GID_0", "GID_1", "NAME_1")) %>%
-    tibble()
+    mutate(ID=row_number()) %>%
+    distinct_at(c("ID", colnames)) %>%
+    left_join(emissions, by="ID",
+              relationship="many-to-many") %>%
+    # rename sector code -> name
+    left_join(
+      tibble(sector_code=sector_codes, sector=sector_names) %>%
+        distinct(sector_code, sector),
+      by="sector_code"
+    ) %>%
+    dplyr::select(-ID, -sector_code) %>%
+    mutate(
+      emission = emission * 365 * 24 * 3600 / 1e6,
+      unit="kt/year",
+    )
 }
+
 
 validate_emissions <- function(emissions, include_shipping=TRUE){
 
   years <- unique(emissions$year)
-  national_emissions <- lapply(years, function(y) readRDS(glue("data/v2024_04_01/ceds_emissions_{y}.RDS"))) %>%
+  national_emissions <- lapply(years, function(y) readRDS(glue("data/v2024_04_01/national/by_year/ceds_emissions_{y}.RDS"))) %>%
     bind_rows() %>%
     filter(include_shipping | !grepl("navigation|shipping", sector, ignore.case=T))
 
   # Check if the sum of provincial emissions is equal to national emissions
   emissions %>%
-    filter(include_shipping | !grepl("shipping", sector_code, ignore.case=T)) %>%
+    filter(include_shipping | !grepl("shipping", sector, ignore.case=T)) %>%
     mutate(iso=tolower(GID_0)) %>%
     rename(poll=pollutant) %>%
     inner_join(
@@ -113,7 +173,7 @@ validate_emissions <- function(emissions, include_shipping=TRUE){
     mutate(level="provincial") %>%
     bind_rows(
       national_emissions %>%
-        select(iso, poll, year, emission=value) %>%
+        dplyr::select(iso, poll, year, emission=value) %>%
         mutate(level="national") %>%
         inner_join(
           emissions %>% distinct(poll=pollutant, iso=tolower(GID_0)),
@@ -157,4 +217,32 @@ buffer_into_sea <- function(vect, id_col, buffer_km=20)
     terra::makeValid()
 
   return(g_combined)
+}
+
+download_nc <- function(year, pollutant, dir){
+
+  dir.create(dir, showWarnings = FALSE)
+  url <- glue("https://rcdtn1.pnl.gov/data/CEDS/CEDS_release-v_2024_07_08_metadata_fix/gridded_emissions/bulk_emissions/fine_grids/{pollutant}/{pollutant}-em-anthro_input4MIPs_emissions_CMIP_CEDS-CMIP-2024-07-08_gr_{year}01-{year}12.nc")
+  dest_file <- glue("{dir}/{pollutant}_{year}.nc")
+  if(file.exists(dest_file) & file.info(dest_file)$size > 1.6e8){
+    return(dest_file)
+  }
+
+  # Download fails hitting timeout otherwise
+  options(timeout=300)
+  options(download.file.method="libcurl", url.method="libcurl")
+
+  # try downloading 5 times
+  for(i in 1:10){
+    tryCatch({
+      download.file(url, dest_file)
+      break
+    }, error = function(e){
+      message(glue("Error downloading {url}"))
+      file.remove(dest_file)
+      Sys.sleep(5)
+    })
+  }
+
+  return(dest_file)
 }

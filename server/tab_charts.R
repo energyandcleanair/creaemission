@@ -13,18 +13,18 @@ output$download_csv <- downloadHandler(
 )
 
 
-emissions_year <- reactive({
-  req(input$year)
-  get_emissions_by_year(input$year)
-})
+emissions_raw <- reactive({
 
-
-emissions_years <- reactive({
+  req(input$region_type)
   req(input$country)
-  isos <- input$country
-  if("all" %in% isos){
+  topn <- input$topn
+  # req(input$year)
+
+  # Adjust isos
+  iso3s <- input$country
+  if(!is.null(iso3s) & ("all" %in% iso3s)){
     # Return topn countries
-    isos_top_n <- get_emissions_by_year(year=2022) %>%
+    iso3s_top_n <- get_emissions_national_by_year(year=2022) %>%
       group_by(iso) %>%
       summarise(value=sum(value, na.rm=T)) %>%
       arrange(desc(value)) %>%
@@ -32,38 +32,44 @@ emissions_years <- reactive({
       pull(iso)
 
     # Remove all and replace with topn
-    isos <- isos[isos!="all"]
-    isos <- c(isos_top_n, isos)
-    isos <- unique(isos)
+    iso3s <- iso3s[iso3s!="all"]
+    iso3s <- c(iso3s_top_n, iso3s)
+    iso3s <- unique(iso3s)
   }
-  get_emissions_by_countries(isos=isos)
+
+  # Adjust years
+  single_year_charts <- c("barh")
+  multiple_year_charts <- c("area")
+  if(input$chart_type %in% single_year_charts){
+    years <- input$year
+  } else {
+    years <- NULL
+  }
+
+  get_emissions(region_type=input$region_type, iso3s=iso3s, years=years)
+
 })
 
 
 emissions <- reactive({
-  # req(emissions_all())
+
   req(input$pollutant)
   req(input$country)
   req(input$chart_type)
+  req(emissions_raw())
 
-  single_year_charts <- c("barh")
-  multiple_year_charts <- c("area")
-
-  e <- if(input$chart_type %in% single_year_charts){
-    emissions_year()
-  } else {
-    emissions_years()
-  }
+  e <- emissions_raw()
 
   # Add World
-  e <- e %>%
-    bind_rows(
-      e %>%
-        group_by(poll, sector, fuel, units, year) %>%
-        summarise(value=sum(value, na.rm=T)) %>%
-        mutate(country="World", iso="world")
-    )
-
+  if(input$region_type=="country"){
+    e <- e %>%
+      bind_rows(
+        e %>%
+          group_by(poll, sector, fuel, units, year) %>%
+          summarise(value=sum(value, na.rm=T)) %>%
+          mutate(country="World", iso="world")
+      )
+  }
 
   e %>%
     filter(poll==input$pollutant) %>%
@@ -75,11 +81,17 @@ emissions <- reactive({
 })
 
 
+output$selectTopN <- renderUI({
+  # Integer output
+  numericInput("topn", "Top N:", value=20, min=1, max=100)
+})
+
 output$plot <- renderPlotly({
 
   group_by <- input$group_by
   color_by <- input$color_by
   chart_type <- input$chart_type
+  topn <- input$topn
 
   req(emissions())
   req(group_by)
@@ -120,17 +132,6 @@ output$plot <- renderPlotly({
     colourCount = length(unique(e_plt[[color_by]]))
     # getPalette = colorRampPalette(rcrea::pal_crea)
     getPalette = colorRampPalette(brewer.pal(12, "Paired"))
-
-    # if(input$region_type == 'C40 Cities'){
-    #   if(input$measurement == 'Absolute'){
-    #     unit_suffix <- ' kt'
-    #   } else {
-    #     unit_suffix <- ' kg'
-    #   }
-    # } else {
-      # unit_suffix <- ' kt'
-    # }
-
 
     plt <- e_plt %>%
       ggplot(aes(value, group)) +
@@ -207,7 +208,14 @@ output$plot <- renderPlotly({
 
 output$selectYear <- renderUI({
   req(input$chart_type)
-  years <- get_emissions_years()
+  req(input$region_type)
+
+  if(input$region_type=="country"){
+    years <- get_national_emissions_years()
+  }else{
+    years <- get_provoncial_emissions_years()
+  }
+
   if(input$chart_type == 'barh'){
     return(selectInput("year", "Year:", multiple=F, choices = rev(years), selected=max(years)))
   }
@@ -219,19 +227,28 @@ output$selectYear <- renderUI({
 })
 
 output$selectCountry <- renderUI({
-  req(emissions_year())
+  req(input$region_type)
 
-  countries <- emissions_year() %>%
-    # We'll want World at the top with All
-    filter(iso!="world", !is.na(country)) %>%
-    arrange(country) %>%
-    distinct(country, iso) %>%
-    # Transformed to named vector iso=country
-    tibble::deframe()
+  multiple = (input$region_type=="country")
 
-  countries <- c("All"="all", "World"="world", countries)
-  # countries <- countries[!is.na(countries)]
-  selectInput('country', 'Country', choices = countries, multiple=T, selected='all')
+  if(input$region_type=="country"){
+    countries <- get_countries() %>%
+      # We'll want World at the top with All
+      filter(iso!="world", !is.na(country)) %>%
+      arrange(country) %>%
+      distinct(country, iso) %>%
+      # Transformed to named vector iso=country
+      tibble::deframe()
+    countries <- c("All"="all", "World"="world", countries)
+    selectInput('country', 'Country', choices = countries, multiple=multiple, selected='all')
+  } else {
+    countries <- tibble(iso=get_countries_with_provincial_data()) %>%
+      mutate(country=countrycode(iso, "iso3c", "country.name")) %>%
+      distinct(country, iso) %>%
+      tibble::deframe()
+    selectInput('country', 'Country', choices = countries, multiple=multiple, selected=countries[[1]])
+  }
+
 })
 
 
@@ -245,19 +262,25 @@ clean_sector_name <- function(x){
   # Extract first thing before _
   # x="1A1_Ind-comb"
   sector_id <- str_extract(x, "^[^_]+")
+  if (all(sector_id==x)){
+    sector_id <- ""
+  }
 
   x %>%
-    # str_replace_all("Ind", "industry") %>%
-    # str_replace_all("comb", "combustion") %>%
-    # str_replace_all("prod", "production") %>%
-    # str_replace_all("prodprod", "prod") %>%
-    # remove sector_id
-    str_remove(sector_id) %>%
+    str_replace_all("Industrial", "Industry") %>%
+    gsub(sector_id, "", .) %>%
     gsub("-|_", " ", .) %>%
+    gsub(" Sector","", .) %>%
     stringr::str_to_sentence() %>%
     gsub("^ ", "", .) %>%
     # add [sector_id] at the end
-    paste0(" [", sector_id, "]")
+    {
+      if(all(sector_id=="")){
+        .
+      }else{
+        paste0(., " [", sector_id, "]")
+      }
+    }
 }
 
 
@@ -266,3 +289,29 @@ clean_country_name <- function(x){
   x[is.na(x)] <- "International"
   x
 }
+
+output$selectPollutant <- renderUI({
+  selectInput("pollutant", "Species:", multiple=F, choices = pollutants, selected=pollutants[1])
+})
+
+output$selectColorBy <- renderUI({
+  req(input$region_type)
+  choices <- color_bys
+
+  if(input$region_type=="province"){
+     names(choices) <- gsub("Country", "Province", names(choices))
+  }
+
+  selectInput("color_by", "Color by:", multiple=F, choices = choices, selected=color_bys[2])
+})
+
+output$selectGroupBy <- renderUI({
+  req(input$region_type)
+  choices <- group_bys
+
+  if(input$region_type=="province"){
+    names(choices) <- gsub("Country", "Province", names(group_bys))
+  }
+
+  selectInput("group_by", "Group by:", multiple=F, choices = choices, selected=group_bys[1])
+})

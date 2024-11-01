@@ -7,7 +7,11 @@ tabPanel("Charts",
              class ="no-padding",
              # shinyjs::useShinyjs(),
 
-
+              # Radio button to choose between country and province
+             selectInput("region_type", "Region type:",
+                           choices = c('Countries'='country', 'Provinces'='province'),
+                           selected='country',
+                           multiple=F),
              selectInput("chart_type", "Chart type:", multiple=F, choices = chart_types, selected=chart_types[1]),
              # selectInput("region_type", "Region type:", multiple=F, choices = c('Countries', 'C40 Cities'), selected='Countries'),
              uiOutput("selectYear"),
@@ -15,10 +19,11 @@ tabPanel("Charts",
              # selectInput('city', 'City', multiple = F, choices = NULL),
              uiOutput("selectCountry"),
              # selectInput('measurement', 'Measurement', multiple = F, choices = c('Absolute', 'Per capita')),
-             selectInput("pollutant", "Species:", multiple=F, choices = pollutants, selected=pollutants[1]),
-             selectInput("color_by", "Color by:", multiple=F, choices = color_bys, selected=color_bys[2]),
-             selectInput("group_by", "Group by:", multiple=F, choices = group_bys, selected=group_bys[1]),
 
+             uiOutput("selectPollutant"),
+             uiOutput("selectColorBy"),
+             uiOutput("selectGroupBy"),
+             uiOutput("selectTopN"),
 
 
              # selectInput("country", "Country", multiple=F, choices = countries, selected="World"),

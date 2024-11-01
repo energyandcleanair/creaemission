@@ -34,3 +34,27 @@ prepare_countries_ts <- function(dest_dir="data/v2024_04_01/by_country"){
       saveRDS(., dest_file)
     })
 }
+
+
+#' Build provincial time series using raster/netCDF data
+prepare_provinces_ts <- function(
+    dest_dir="data/v2024_04_01/provincial",
+    iso2s=c("ID", "IN", "CN"),
+    years=seq(2000, 2022)
+){
+
+  dir.create(dest_dir, showWarnings = F)
+
+  emissions <- extract_provincial_data(
+    year=years,
+    iso2s=iso2s,
+    level=1,
+    res="low"
+  )
+
+  lapply(split(emissions, emissions$GID_0), function(emission_iso){
+    iso3 <- tolower(emission_iso$GID_0[1])
+    dest_file <- file.path(dest_dir, paste0(iso3, ".rds"))
+    saveRDS(emission_iso, dest_file)
+  })
+}
