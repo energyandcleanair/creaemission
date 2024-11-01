@@ -47,11 +47,10 @@ prepare_provinces_ts <- function(
 
   emissions <- extract_provincial_data(
     year=years,
-    country_id=iso2s,
+    iso2s=iso2s,
     level=1,
     res="low"
   )
-
 
   lapply(split(emissions, emissions$GID_0), function(emission_iso){
     iso3 <- tolower(emission_iso$GID_0[1])

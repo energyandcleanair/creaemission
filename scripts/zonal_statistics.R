@@ -9,9 +9,10 @@ extract_provincial_data <- function(years=seq(2000,2022),
   library(glue)
   library(ncdf4)
   library(tidyverse)
+  library(terra)
 
 
-  dir <- "data/netcdf"
+  dir_netcdf <- "cache/netcdf"
 
   # While the functions could work with several iso2s in one go,
   # it can reach memory / HDD limits if so
@@ -21,7 +22,7 @@ extract_provincial_data <- function(years=seq(2000,2022),
     if(file.exists(filepath)) return(readRDS(filepath))
     message(glue("Extracting emissions for {iso2}"))
     vect <- get_vect(iso2, res, level, buffer_into_sea_km)
-    stack <- get_stack(vect, years, pollutants, dir)
+    stack <- get_stack(vect, years, pollutants, dir_netcdf)
     result <- extract_emission(vect, stack, iso2, level, res)
     saveRDS(result, filepath)
     return(result)
@@ -154,7 +155,7 @@ extract_emission <- function(vect, stack, iso2s, level=1, res="low", buffer_into
 validate_emissions <- function(emissions, include_shipping=TRUE){
 
   years <- unique(emissions$year)
-  national_emissions <- lapply(years, function(y) readRDS(glue("data/v2024_04_01/by_year/national/ceds_emissions_{y}.RDS"))) %>%
+  national_emissions <- lapply(years, function(y) readRDS(glue("data/v2024_04_01/national/by_year/ceds_emissions_{y}.RDS"))) %>%
     bind_rows() %>%
     filter(include_shipping | !grepl("navigation|shipping", sector, ignore.case=T))
 
