@@ -18,7 +18,6 @@ library(DT)
 library(scales)
 library(raster)
 library(mapview)
-library(rgdal)
 library(glue)
 sel <- dplyr::select
 

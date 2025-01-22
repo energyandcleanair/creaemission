@@ -1,7 +1,6 @@
-tabPanel("About CREA",
+tabPanel("About",
          value="about",
-
-         htmlOutput("aboutCrea", class = "about")
+         htmlOutput("about", class = "about")
 
 )
 
