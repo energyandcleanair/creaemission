@@ -15,7 +15,7 @@ get_countries_with_provincial_data <- function(){
 
 
 get_national_emissions_years <- function(){
-  list.files("data/v2024_04_01/national/by_year", pattern=".*\\.RDS") %>%
+  list.files("data/v2024_04_01/national/by_year", pattern=".*\\.rds") %>%
     # ceds_emissions_2000.RDS -> 2000
     map_chr(~str_extract(.x, "\\d{4}")) %>%
     as.integer()%>%

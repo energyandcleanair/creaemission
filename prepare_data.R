@@ -39,7 +39,7 @@ prepare_countries_ts <- function(dest_dir="data/v2024_04_01/by_country"){
 #' Build provincial time series using raster/netCDF data
 prepare_provinces_ts <- function(
     dest_dir="data/v2024_04_01/provincial",
-    iso2s=c("ID", "IN", "CN"),
+    iso2s=c("ID", "IN", "CN", "ZA"),
     years=seq(2000, 2022)
 ){
 

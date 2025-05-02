@@ -18,7 +18,7 @@ extract_provincial_data <- function(years=seq(2000,2022),
   # it can reach memory / HDD limits if so
   emissions <- lapply(iso2s, function(iso2){
     iso3 <- countrycode::countrycode(iso2, "iso2c", "iso3c")
-    filepath <- glue("data/v2024_04_01/provincial/{tolower(iso3)}.RDS")
+    filepath <- glue("data/v2024_04_01/provincial/{tolower(iso3)}.rds")
     if(file.exists(filepath)) return(readRDS(filepath))
     message(glue("Extracting emissions for {iso2}"))
     vect <- get_vect(iso2, res, level, buffer_into_sea_km)

@@ -40,7 +40,7 @@ get_emissions_national <- function(iso3s, years=NULL){
 
 
 get_emissions_national_by_year <- function(year, iso3s=NULL){
-  readRDS(glue("data/v2024_04_01/national/by_year/ceds_emissions_{year}.RDS")) %>%
+  readRDS(glue("data/v2024_04_01/national/by_year/ceds_emissions_{year}.rds")) %>%
     mutate(
       country=countrycode(iso, "iso3c", "country.name",
                                custom_match=c("global"="Global"))

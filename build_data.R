@@ -32,7 +32,7 @@ build_data <- function(min_year=2000) {
   # split by year and export
   data %>%
     split(.$year) %>%
-    walk(~saveRDS(.x, file.path(data_dir, paste0("ceds_emissions_",.x$year[1], ".RDS"))))
+    walk(~saveRDS(.x, file.path(data_dir, paste0("ceds_emissions_",.x$year[1], ".rds"))))
 
 }
 
