@@ -1,18 +1,28 @@
-
-#' Read all CEDS data and extract lighter country-specific RDS files to be used in time series
+#' Read all emissions data and extract lighter country-specific RDS files to be used in time series
 #' Saves time and memory (and prevents actual crash on ShinyApps.io)
 #'
+#' @param source Data source (CEDS or EDGAR)
+#' @param dest_dir Destination directory for the output files
+#' @param years Years to process
 #'
 #' @return
 #' @export
 #'
 #' @examples
-prepare_countries_ts <- function(dest_dir="data/v2024_04_01/by_country"){
-
-
+prepare_countries_ts <- function(
+  source = "CEDS",
+  dest_dir = NULL,
+  years = seq(2000, 2022)
+){
+  source <- toupper(source)
+  source_dir <- tolower(source)
+  
+  if(is.null(dest_dir)) {
+    dest_dir <- glue("data/{source_dir}/national")
+  }
+  
   # read all files
-  years <- seq(2000, 2022)
-  emissions <- lapply(years, get_emissions) %>%
+  emissions <- lapply(years, function(y) get_emissions_national_by_year(year = y, source = source)) %>%
     bind_rows()
 
   # Add world
@@ -20,11 +30,11 @@ prepare_countries_ts <- function(dest_dir="data/v2024_04_01/by_country"){
     bind_rows(
       emissions %>%
         group_by(poll, sector, fuel, units, year) %>%
-        summarise(value=sum(value, na.rm=T)) %>%
-        mutate(country="World", iso="world")
+        summarise(value = sum(value, na.rm = TRUE)) %>%
+        mutate(country = "World", iso = "world", source = source)
     )
 
-  dir.create(dest_dir, showWarnings = F)
+  dir.create(dest_dir, recursive = TRUE, showWarnings = FALSE)
 
   # Split by country and save
   split(emissions, emissions$iso) %>%
@@ -37,19 +47,45 @@ prepare_countries_ts <- function(dest_dir="data/v2024_04_01/by_country"){
 
 
 #' Build provincial time series using raster/netCDF data
+#'
+#' @param source Data source (CEDS or EDGAR)
+#' @param dest_dir Destination directory for the output files
+#' @param iso2s ISO2 country codes to process
+#' @param years Years to process
+#'
+#' @return
+#' @export
+#'
+#' @examples
 prepare_provinces_ts <- function(
-    dest_dir="data/v2024_04_01/provincial",
-    iso2s=c("ID", "IN", "CN", "ZA"),
-    years=seq(2000, 2022)
+    source = "CEDS",
+    dest_dir = NULL,
+    iso2s = c("ID", "IN", "CN", "ZA"),
+    years = NULL
 ){
+  source <- toupper(source)
+  source_dir <- tolower(source)
+  
+  if(is.null(dest_dir)) {
+    dest_dir <- glue("data/{source_dir}/provincial")
+  }
+  
+  if(is.null(years)) {
+    if(source == "CEDS") {
+      years <- seq(2000, 2022)
+    } else if(source == "EDGAR") {
+      years <- seq(2000, 2022)
+    }
+  }
 
-  dir.create(dest_dir, showWarnings = F)
+  dir.create(dest_dir, recursive = TRUE, showWarnings = FALSE)
 
   emissions <- extract_provincial_data(
-    year=years,
-    iso2s=iso2s,
-    level=1,
-    res="low"
+    year = years,
+    iso2s = iso2s,
+    level = 1,
+    res = "low",
+    source = source
   )
 
   lapply(split(emissions, emissions$GID_0), function(emission_iso){
