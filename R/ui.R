@@ -6,8 +6,7 @@ library(leaflet)
 library(plotly)
 
 ui <- navbarPage(
-    title=div(img(src="crea_logo.svg",
-                  height=44)),
+    title=div(img(src="crea_logo.svg", height=44)),
     windowTitle="CREA - CEDS | Emissions inventory",
     theme = "theme.css",
     id = "nav-page",

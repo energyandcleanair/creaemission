@@ -1,5 +1,15 @@
+# Add this near the top of the file, with other reactive declarations
+selected_countries <- reactiveVal(NULL)
+selected_year <- reactiveVal(NULL)
 
+# Add this observer to update the stored selection when input changes
+observeEvent(input$country, {
+  selected_countries(input$country)
+})
 
+observeEvent(input$year, {
+  selected_year(input$year)
+})
 
 # Download Handlers ----------------------------------
 # Downloadable csv of selected dataset
@@ -17,19 +27,36 @@ emissions_raw <- reactive({
 
   req(input$region_type)
   req(input$country)
+  req(input$source)
   topn <- input$topn
-  # req(input$year)
+
+  # Years
+  single_year_charts <- c("barh")
+  multiple_year_charts <- c("area")
+  if(input$chart_type %in% single_year_charts){
+    years <- input$year
+    if(is.null(years)){
+      # Probably being set up
+      return(NULL)
+    }
+  } else {
+    years <- NULL
+  }
+
 
   # Adjust isos
   iso3s <- input$country
   if(!is.null(iso3s) & ("all" %in% iso3s)){
+    # Get latest year from catalog
+    latest_year <- get_latest_year(source=input$source, region_type=input$region_type)
+
     # Return topn countries
-    iso3s_top_n <- get_emissions_national_by_year(year=2022) %>%
-      group_by(iso) %>%
+    iso3s_top_n <- get_emissions_national_by_year(year=latest_year, source=input$source) %>%
+      group_by(iso3) %>%
       summarise(value=sum(value, na.rm=T)) %>%
       arrange(desc(value)) %>%
       head(topn) %>%
-      pull(iso)
+      pull(iso3)
 
     # Remove all and replace with topn
     iso3s <- iso3s[iso3s!="all"]
@@ -37,22 +64,14 @@ emissions_raw <- reactive({
     iso3s <- unique(iso3s)
   }
 
-  # Adjust years
-  single_year_charts <- c("barh")
-  multiple_year_charts <- c("area")
-  if(input$chart_type %in% single_year_charts){
-    years <- input$year
-  } else {
-    years <- NULL
-  }
 
-  get_emissions(region_type=input$region_type, iso3s=iso3s, years=years)
+
+  get_emissions(region_type=input$region_type, iso3s=iso3s, years=years, source=input$source)
 
 })
 
 
 emissions <- reactive({
-
   req(input$pollutant)
   req(input$country)
   req(input$chart_type)
@@ -60,24 +79,12 @@ emissions <- reactive({
 
   e <- emissions_raw()
 
-  # Add World
-  if(input$region_type=="country"){
-    e <- e %>%
-      bind_rows(
-        e %>%
-          group_by(poll, sector, fuel, units, year) %>%
-          summarise(value=sum(value, na.rm=T)) %>%
-          mutate(country="World", iso="world")
-      )
-  }
-
   e %>%
     filter(poll==input$pollutant) %>%
-    filter(("all" %in% input$country & iso != "world") | iso %in% input$country) %>%
+    filter(("all" %in% input$country & iso3 != "world") | iso3 %in% input$country) %>%
     mutate(sector=clean_sector_name(sector),
            fuel=clean_fuel_name(fuel),
            country=clean_country_name(country))
-
 })
 
 
@@ -100,8 +107,8 @@ output$plot <- renderPlotly({
 
   e <- emissions()
 
-  # Assert that all units start with kt
-  if(!all(grepl("^kt", e$units))){
+  # Assert that all units start with kt or Gg
+  if(!all(grepl("^kt|Gg", e$units))){
     stop("Not all units are in kt")
   }
   unit_suffix <- "kt"
@@ -142,7 +149,7 @@ output$plot <- renderPlotly({
                            labels = scales::comma_format(suffix=unit_suffix)) +
       scale_fill_manual(values = getPalette(colourCount),
                         name=NULL) +
-       labs(caption="Source: CREA analysis based on CEDS.",
+       labs(caption=paste0("Source: CREA analysis based on ", input$source, "."),
             y=NULL,
             x=NULL)
   }
@@ -188,7 +195,7 @@ output$plot <- renderPlotly({
                          labels = scales::comma_format(suffix=unit_suffix)) +
       scale_fill_manual(values = getPalette(colourCount),
                         name=NULL) +
-      labs(caption="Source: CREA analysis based on CEDS.",
+      labs(caption=paste0("Source: CREA analysis based on ", input$source, "."),
            y=NULL,
            x=NULL) +
       facet_wrap(~group, scales="free")
@@ -209,15 +216,27 @@ output$plot <- renderPlotly({
 output$selectYear <- renderUI({
   req(input$chart_type)
   req(input$region_type)
+  req(input$source)
+  req(input$country)
 
-  if(input$region_type=="country"){
-    years <- get_national_emissions_years()
-  }else{
-    years <- get_provoncial_emissions_years()
-  }
+  years <- get_catalog_years(source=input$source, type=input$region_type)
 
   if(input$chart_type == 'barh'){
-    return(selectInput("year", "Year:", multiple=F, choices = rev(years), selected=max(years)))
+    latest_year <- get_latest_year(source=input$source,
+                                  region_type=input$region_type)
+    
+    # Get previously selected year if it's still available
+    prev_selected <- selected_year()
+    if(!is.null(prev_selected) && prev_selected %in% years) {
+      selected <- prev_selected
+    } else {
+      selected <- latest_year
+    }
+
+    return(selectInput("year", "Year:",
+                      multiple=F,
+                      choices = rev(years),
+                      selected=selected))
   }
   if(input$chart_type == 'area'){
     # No select shown
@@ -228,27 +247,55 @@ output$selectYear <- renderUI({
 
 output$selectCountry <- renderUI({
   req(input$region_type)
+  req(input$source)
 
-  multiple = (input$region_type=="country")
+  multiple = (input$region_type==REGIONTYPE_NATIONAL)
 
-  if(input$region_type=="country"){
-    countries <- get_countries() %>%
-      # We'll want World at the top with All
-      filter(iso!="world", !is.na(country)) %>%
+  if(input$region_type==REGIONTYPE_NATIONAL){
+    # Get countries from catalog
+    countries <- get_catalog_countries(source=input$source, type=input$region_type) %>%
+      tibble(iso3 = .) %>%
+      mutate(country = iso3_to_country(iso3)) %>%
+      filter(iso3!="world", !is.na(country)) %>%
       arrange(country) %>%
-      distinct(country, iso) %>%
+      distinct(country, iso3) %>%
       # Transformed to named vector iso=country
       tibble::deframe()
     countries <- c("All"="all", "World"="world", countries)
-    selectInput('country', 'Country', choices = countries, multiple=multiple, selected='all')
-  } else {
-    countries <- tibble(iso=get_countries_with_provincial_data()) %>%
-      mutate(country=countrycode(iso, "iso3c", "country.name")) %>%
-      distinct(country, iso) %>%
-      tibble::deframe()
-    selectInput('country', 'Country', choices = countries, multiple=multiple, selected=countries[[1]])
-  }
 
+    # Get previously selected countries that are still available
+    prev_selected <- selected_countries()
+    if(!is.null(prev_selected)) {
+      # Keep only countries that are still available in the new source
+      valid_selected <- prev_selected[prev_selected %in% countries]
+      if(length(valid_selected) > 0) {
+        selected <- valid_selected
+      } else {
+        selected <- 'all'
+      }
+    } else {
+      selected <- 'all'
+    }
+
+    selectInput('country', 'Country', choices = countries, multiple=multiple, selected=selected)
+  } else {
+    # Get provincial countries from catalog
+    countries <- get_catalog_countries(source=input$source, type=input$region_type) %>%
+      tibble(iso3 = .) %>%
+      mutate(country = iso3_to_country(iso3)) %>%
+      distinct(country, iso3) %>%
+      tibble::deframe()
+
+    # Get previously selected country if still available
+    prev_selected <- selected_countries()
+    if(!is.null(prev_selected) && prev_selected %in% countries) {
+      selected <- prev_selected
+    } else {
+      selected <- countries[[1]]
+    }
+
+    selectInput('country', 'Country', choices = countries, multiple=multiple, selected=selected)
+  }
 })
 
 
@@ -258,29 +305,35 @@ clean_fuel_name <- function(x){
   stringr::str_to_sentence()
 }
 
-clean_sector_name <- function(x){
-  # Extract first thing before _
-  # x="1A1_Ind-comb"
-  sector_id <- str_extract(x, "^[^_]+")
-  if (all(sector_id==x)){
-    sector_id <- ""
-  }
 
-  x %>%
+clean_sector_name <- function(x) {
+  # Extract sector_id if it exists at the start (either in brackets or before underscore)
+  sector_ids <- str_extract(x, "^\\[([^\\]]+)\\]|^[^_]+")
+
+  # If sector_id is in brackets, extract just the ID part
+  sector_ids <- ifelse(!is.na(sector_ids) & str_detect(sector_ids, "^\\["),
+                      str_extract(sector_ids, "[^\\[\\]]+"),
+                      sector_ids)
+
+  # Clean the name part
+  cleaned <- x %>%
+    # Remove sector_id from the beginning (either in brackets or with underscore)
+    str_remove(paste0("^\\[", sector_ids, "\\]\\s*|^", sector_ids, "_")) %>%
+    # Replace "Industrial" with "Industry"
     str_replace_all("Industrial", "Industry") %>%
-    gsub(sector_id, "", .) %>%
-    gsub("-|_", " ", .) %>%
-    gsub(" Sector","", .) %>%
-    stringr::str_to_sentence() %>%
-    gsub("^ ", "", .) %>%
-    # add [sector_id] at the end
-    {
-      if(all(sector_id=="")){
-        .
-      }else{
-        paste0(., " [", sector_id, "]")
-      }
-    }
+    # Replace separators with spaces
+    str_replace_all("[-_]", " ") %>%
+    # Remove "Sector" text
+    str_remove(" Sector$") %>%
+    # Capitalize first letter
+    str_to_sentence() %>%
+    # Remove leading/trailing whitespace
+    str_trim()
+
+  # Add sector_id in brackets if it exists and is different from the full name
+  ifelse(!is.na(sector_ids) & sector_ids != x,
+         str_c(cleaned, " [", sector_ids, "]"),
+         cleaned)
 }
 
 

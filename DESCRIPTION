@@ -1,0 +1,31 @@
+Package: creaemission
+Type: Package
+Title: Emission Dashboard - Emissions Data Analysis and Visualization
+Version: 1.0.0
+Authors@R: 
+    person("CREA", "Hubert Thieriot", email = "hubert@energyandcleanair.org", role = c("aut", "cre"))
+Description: A R package and Shiny dashboard for analyzing and visualizing emissions data from CEDS and EDGAR sources, with support for both national and provincial-level analysis.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.2.3
+Imports:
+    R6,
+    dplyr,
+    tidyr,
+    terra,
+    lubridate,
+    glue,
+    stringr,
+    ncdf4,
+    pbapply,
+    scales,
+    plotly,
+    ggplot2,
+    RColorBrewer,
+    shiny,
+    countrycode
+Suggests: 
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown

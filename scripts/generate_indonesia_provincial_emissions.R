@@ -1,3 +1,8 @@
+EDGARSourceProvincial$new()$extract_provincial_data(
+iso2s=c("ID","IN","CN", "TH", "VN", "ZA")
+)
+
+
 emissions_id_low <- lapply(c(2019,2022), function(y){
   extract_provincial_data(
     year=y,

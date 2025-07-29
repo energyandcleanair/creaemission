@@ -22,6 +22,9 @@ EmissionsSourceProvincial <- R6::R6Class(
     #' @field provincial_data_dir Directory for provincial data
     provincial_data_dir = NULL,
 
+    #' @field gridded_data_dir Directory for gridded data
+    gridded_data_dir = NULL,
+
     #' @field cache_dir Directory for temporary files
     cache_dir = NULL,
 
@@ -33,21 +36,19 @@ EmissionsSourceProvincial <- R6::R6Class(
     #' @param cache_dir Directory for temporary files
     initialize = function(source_name,
                           version,
-                          available_years,
-                          data_dir = NULL) {
+                          available_years) {
+
       self$source_name <- source_name
       self$version <- version
       self$available_years <- available_years
 
-      if (is.null(data_dir)) {
-        data_dir <- file.path("data", tolower(source_name))
-      }
-      self$data_dir <- data_dir
+      self$data_dir <- file.path("data", tolower(source_name))
       self$provincial_data_dir <- file.path(self$data_dir, "provincial")
-      self$cache_dir <- file.path("data", "cache", tolower(source_name))
+      self$gridded_data_dir <- file.path(self$data_dir, "gridded")
+      self$cache_dir <- file.path("cache", tolower(source_name))
 
       # Create directories if they don't exist
-      for (dir in c(self$data_dir, self$provincial_data_dir, self$cache_dir)) {
+      for (dir in c(self$data_dir, self$provincial_data_dir, self$cache_dir, self$gridded_data_dir)) {
         if (!dir.exists(dir)) {
           dir.create(dir, recursive = TRUE, showWarnings = FALSE)
         }
@@ -169,7 +170,7 @@ EmissionsSourceProvincial <- R6::R6Class(
         gridded_data <- self$download_gridded_data(years, pollutants)
 
         # Extract emissions for each province
-        result <- self$extract_emissions_from_grid(vect, gridded_data, iso2, level, res)
+        result <- self$extract_emissions_from_grid(vect, gridded_data, iso2)
 
         # Save result
         saveRDS(result, filepath)
@@ -187,7 +188,7 @@ EmissionsSourceProvincial <- R6::R6Class(
     #' @param level Administrative level
     #' @param res Resolution
     #' @return Data frame with provincial emissions
-    extract_emissions_from_grid = function(vect, gridded_data, iso2, level, res) {
+    extract_emissions_from_grid = function(vect, gridded_data, iso2, preserve_sector_codes = FALSE) {
       stop("Method must be implemented by subclass")
     },
 

@@ -1,6 +1,6 @@
 extract_provincial_data <- function(years=seq(2000,2022),
                                     pollutants=c("NOx", "BC", "CH4", "CO", "CO2", "N2O", "NH3", "NMVOC", "OC", "SO2"),
-                                    iso2s=c("ID","IN","CN"),
+                                    iso2s=c("ID","IN","CN", "TH", "VN", "ZA"),
                                     level=1,
                                     res="low",
                                     buffer_into_sea_km=20

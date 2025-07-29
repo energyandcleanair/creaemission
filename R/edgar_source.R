@@ -25,7 +25,7 @@ EDGARSource <- R6::R6Class(
     #' @description Download EDGAR data
     #' @param pollutants Vector of pollutants to download
     #' @return Path to downloaded data directory
-    download_data = function(pollutants = c("CO2", "CH4", "N2O", "SO2", "NOx", "CO", "NMVOC", "NH3", "PM10", "PM2.5", "BC", "OC")) {
+    download_data = function(pollutants = c("BC", "CO", "NH3", "NMVOC", "NOX", "CO", "OC", "PM10", "PM25", "SO2")) {
       # Create directory for downloaded files
       download_dir <- file.path(self$cache_dir, "edgar_raw")
       if (!dir.exists(download_dir)) {
@@ -102,7 +102,7 @@ EDGARSource <- R6::R6Class(
     #' @param pollutants Vector of pollutants to download
     #' @return Invisibly returns paths to saved files
     build = function(min_year = NULL,
-                    pollutants = c("NOx", "SO2")) {
+                    pollutants = c("BC", "CO", "NH3", "NMVOC", "NOx", "CO", "OC", "PM10", "PM25", "SO2")) {
       # Download data
       download_dir <- self$download_data(pollutants)
 

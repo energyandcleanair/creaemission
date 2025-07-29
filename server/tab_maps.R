@@ -1,6 +1,3 @@
-
-
-
 # Download Handlers ----------------------------------
 # Downloadable csv of selected dataset
 output$download_map <- downloadHandler(
@@ -16,7 +13,15 @@ output$download_map <- downloadHandler(
 # Output Elements --------------------------------------
 emissions_raster <- reactive({
   req(input$map_pollutant)
-  get_emissions_raster(poll==input$map_pollutant)
+  req(input$map_year)
+  req(input$map_source)
+  req(input$map_sector)
+
+  get_emissions_raster(
+    poll=input$map_pollutant,
+    year=input$map_year,
+    sector=input$map_sector,
+    source=input$map_source)
 })
 
 

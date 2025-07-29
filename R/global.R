@@ -21,9 +21,8 @@ library(mapview)
 library(glue)
 sel <- dplyr::select
 
-source('emission.R')
-source('data_availability.R')
-
+# Files are now in the same directory and will be loaded by the package
+# No need to source them explicitly
 
 pollutants <- c("NOx"="NOx",
                 "SO2"="SO2",
@@ -42,11 +41,8 @@ chart_types <- c("Bar (Horizontal)"="barh",
                  "Timeseries (area)"="area")
 # topn <- 20 # How many rows max in chart
 
-ceds_sectors <- c("Total"="total", "Agriculture"="agri", "Energy"="energy",
-                  "Industrial"="industrial", "Transportation"="transport",
-                  "Residential, Commercial, Other"="rescom",
-                  "Solvents production and application"="solvents",
-                  "Waste"="waste", "International Shipping"="shipping")
+# Use CEDS sector mappings from the new ceds_sectors.R file
+ceds_sectors <- CEDS_GRIDDED_SECTORS
 
 map_palettes=c("Viridis"="viridis","OrRd"="OrRdREVERSE","Inferno"="inferno")
 
