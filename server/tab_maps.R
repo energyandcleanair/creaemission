@@ -1,11 +1,14 @@
 # Download Handlers ----------------------------------
-# Downloadable csv of selected dataset
+# Downloadable tif of selected dataset
 output$download_map <- downloadHandler(
   filename = function() {
     paste("emissions.tif", sep = "")
   },
   content = function(file) {
-    write.csv(emissions_raster(), file, row.names = FALSE)
+    raster <- emissions_raster()
+    if (!is.null(raster)) {
+      terra::writeRaster(raster, file, overwrite = TRUE)
+    }
   }
 )
 
@@ -16,12 +19,20 @@ emissions_raster <- reactive({
   req(input$map_year)
   req(input$map_source)
   req(input$map_sector)
+  req(input$map_country)
 
-  get_emissions_raster(
-    poll=input$map_pollutant,
-    year=input$map_year,
-    sector=input$map_sector,
-    source=input$map_source)
+  tryCatch({
+    get_emissions_raster(
+      poll = input$map_pollutant,
+      year = input$map_year,
+      sector = input$map_sector,
+      source = input$map_source,
+      iso2 = input$map_country
+    )
+  }, error = function(e) {
+    message(glue::glue("Error getting emissions raster: {e$message}"))
+    return(NULL)
+  })
 })
 
 
@@ -33,18 +44,31 @@ output$map <- renderLeaflet({
   req(r)
   req(sector)
 
-  emission <- r[[sector]] * 1e12
+  # Convert to appropriate units for display
+  emission <- r * 1e6  # Convert to appropriate scale
 
-  # Saturage for
-  saturation <- quantile(emission, 0.999)
-  breaks <- round(c(seq(-1e-10, saturation, length.out = 15), max(emission[])))
-  breaks[1]=-1e-10 #to remove some gray bands
-
-  colors <- hcl.colors(15, gsub("REVERSE","",palette), rev = grepl("REVERSE",palette))
-
-  (map <- mapview(emission,
-                  layer.name=names(ceds_sectors)[which(ceds_sectors==sector)],
-                 at=breaks,
-                 col.regions=colors))
-  map@map
+  # Calculate breaks for visualization
+  emission_values <- emission[]
+  emission_values <- emission_values[!is.na(emission_values) & emission_values > 0]
+  
+  if (length(emission_values) == 0) {
+    # Create empty map if no data
+    leaflet() %>%
+      addTiles() %>%
+      setView(lng = 0, lat = 0, zoom = 2)
+  } else {
+    # Calculate breaks
+    saturation <- quantile(emission_values, 0.999, na.rm = TRUE)
+    breaks <- c(0, seq(0, saturation, length.out = 14), max(emission_values, na.rm = TRUE))
+    
+    # Get colors
+    colors <- hcl.colors(15, gsub("REVERSE", "", palette), rev = grepl("REVERSE", palette))
+    
+    # Create map
+    map <- mapview(emission,
+                   layer.name = get_sector_name(sector, input$map_source, "provincial"),
+                   at = breaks,
+                   col.regions = colors)
+    map@map
+  }
 })

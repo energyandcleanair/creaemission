@@ -67,11 +67,11 @@ test_that("EDGAR provincial vs national validation works correctly", {
 
 test_that("EDGAR sector mapping works correctly", {
   # Test sector mapping utility - returns full sector names, not codes
-  expect_equal(get_edgar_national_sector("RCO"), "Residential and other sectors")
-  expect_equal(get_edgar_national_sector("ENE"), "Energy")
+  expect_equal(get_sector_name("RCO", "EDGAR", "provincial"), "Residential and Commercial")
+  expect_equal(get_sector_name("ENE", "EDGAR", "provincial"), "Energy")
 
   # Test invalid sector
-  expect_null(get_edgar_national_sector("INVALID_SECTOR"))
+  expect_error(get_sector_name("INVALID_SECTOR", "EDGAR", "provincial"))
 })
 
 test_that("EDGAR national data loading works correctly", {

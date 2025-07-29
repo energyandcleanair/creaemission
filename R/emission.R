@@ -128,3 +128,143 @@ get_latest_year <- function(source = SOURCE_CEDS, region_type = REGIONTYPE_NATIO
   available_years <- get_catalog_years(catalog = catalog, source = toupper(source), type = region_type)
   max(available_years)
 }
+
+#' Get emissions raster for mapping
+#'
+#' @param poll Pollutant code
+#' @param year Year
+#' @param sector Sector code
+#' @param source Data source (CEDS or EDGAR)
+#' @param iso2 ISO2 country code (for provincial data)
+#' @return Terra raster object
+#' @export
+get_emissions_raster <- function(poll, year, sector, source = "CEDS", iso2 = NULL) {
+  source <- toupper(source)
+  
+  # Create appropriate source object
+  if (source == "CEDS") {
+    source_obj <- CEDSSourceProvincial$new()
+  } else if (source == "EDGAR") {
+    source_obj <- EDGARSourceProvincial$new()
+  } else {
+    stop(glue::glue("Unsupported source: {source}"))
+  }
+  
+  # If no specific country requested, try to find one with data
+  if (is.null(iso2)) {
+    available_maps <- source_obj$available_maps()
+    if (nrow(available_maps) == 0) {
+      stop(glue::glue("No map data available for {source}"))
+    }
+    
+    # Find a country with the requested parameters
+    matching_data <- available_maps %>%
+      dplyr::filter(
+        pollutant == poll,
+        sector == sector,
+        year == year
+      )
+    
+    if (nrow(matching_data) == 0) {
+      stop(glue::glue("No data found for {poll} {sector} {year} in {source}"))
+    }
+    
+    # Use the first available country
+    iso2 <- matching_data$iso2[1]
+  }
+  
+  # Get the map raster
+  raster_obj <- source_obj$get_map(
+    pollutant = poll,
+    sector = sector,
+    year = year,
+    iso2 = iso2,
+    save = FALSE
+  )
+  
+  if (is.null(raster_obj)) {
+    stop(glue::glue("Failed to generate raster for {poll} {sector} {year} {iso2} in {source}"))
+  }
+  
+  return(raster_obj)
+}
+
+#' @title Compare Global Map Sum with National Emissions Sum
+#' @description Compare the sum of a global emissions map (raster * area) with the sum of all national emissions for the same pollutant/sector/year
+#' @param pollutant Pollutant code
+#' @param sector Sector code  
+#' @param year Year
+#' @param source Data source ("CEDS" or "EDGAR")
+#' @return List with comparison results
+#' @export
+compare_global_vs_national <- function(pollutant, sector, year, source = "CEDS") {
+  
+  # Initialize sources
+  if (source == "CEDS") {
+    provincial_source <- CEDSSourceProvincial$new()
+    national_source <- CEDSSource$new()
+  } else if (source == "EDGAR") {
+    provincial_source <- EDGARSourceProvincial$new()
+    national_source <- EDGARSource$new()
+  } else {
+    stop("Source must be 'CEDS' or 'EDGAR'")
+  }
+  
+  # Get global map
+  global_map <- provincial_source$get_map(
+    pollutant = pollutant,
+    sector = sector,
+    year = year,
+    iso2 = "wld",
+    save = FALSE
+  )
+  
+  if (is.null(global_map)) {
+    return(list(
+      success = FALSE,
+      error = "Global map not available"
+    ))
+  }
+  
+  # Calculate global sum (raster * area)
+  cell_areas <- terra::cellSize(global_map, unit = "m2")
+  global_sum_kg_s <- sum(global_map[] * cell_areas[], na.rm = TRUE)
+  
+  # Get national emissions
+  national_emissions <- national_source$get_emissions(
+    pollutant = pollutant,
+    sector = sector,
+    year = year
+  )
+  
+  if (is.null(national_emissions) || nrow(national_emissions) == 0) {
+    return(list(
+      success = FALSE,
+      error = "National emissions not available"
+    ))
+  }
+  
+  # Sum all national emissions
+  national_sum_kt_year <- sum(national_emissions$emission, na.rm = TRUE)
+  
+  # Convert national sum to same units as global map (kt/year to kg/s)
+  national_sum_kg_s <- national_sum_kt_year * 1000 * 1000 / (365.25 * 24 * 3600)
+  
+  # Calculate difference and percentage
+  difference <- abs(global_sum_kg_s - national_sum_kg_s)
+  percentage_diff <- (difference / max(global_sum_kg_s, national_sum_kg_s)) * 100
+  
+  return(list(
+    success = TRUE,
+    pollutant = pollutant,
+    sector = sector,
+    year = year,
+    source = source,
+    global_sum_kg_s = global_sum_kg_s,
+    national_sum_kt_year = national_sum_kt_year,
+    national_sum_kg_s = national_sum_kg_s,
+    difference_kg_s = difference,
+    percentage_difference = percentage_diff,
+    tolerance_met = percentage_diff <= 10  # 10% tolerance
+  ))
+}

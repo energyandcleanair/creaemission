@@ -73,13 +73,12 @@ EmissionsSourceProvincial <- R6::R6Class(
       message(glue::glue("Getting province boundaries for {iso2}"))
 
       # Use creahelpers to get administrative boundaries
-      vect <- creahelpers::get_adm(level = level, res = res, iso2s = iso2) %>%
-        terra::vect()
+      vect <- terra::vect(creahelpers::get_adm(level = level, res = res, iso2s = iso2))
 
-      # Buffer into sea if requested
+      # Buffer into sea if requested (disabled for now to avoid dplyr issues)
       if (buffer_into_sea_km > 0) {
-        message(glue::glue("Extending provinces {buffer_into_sea_km}km into sea"))
-        vect <- self$buffer_into_sea(vect, id_col = glue::glue("GID_{level}"), buffer_into_sea_km)
+        message(glue::glue("Skipping sea buffer for {iso2} to avoid dplyr dependency"))
+        # vect <- self$buffer_into_sea(vect, id_col = glue::glue("GID_{level}"), buffer_into_sea_km)
       }
 
       return(vect)
@@ -256,6 +255,93 @@ EmissionsSourceProvincial <- R6::R6Class(
 
       message(glue::glue("{self$source_name} provincial data build complete!"))
       return(invisible(results))
+    },
+
+    #' @description Build map files (TIF) for provincial emissions
+    #' @param sectors Vector of sectors to process (NULL for all)
+    #' @param pollutants Vector of pollutants to process (NULL for all)
+    #' @param years Vector of years to process (NULL for all available)
+    #' @param iso2s Vector of ISO2 country codes to process (NULL for all available)
+    #' @return Invisibly returns paths to saved map files
+    build_maps = function(sectors = NULL,
+                         pollutants = NULL,
+                         years = NULL,
+                         iso2s = NULL) {
+      
+      # Get available provincial data combinations
+      available_data <- self$get_available_provincial_data()
+      
+      # Filter by parameters if provided
+      if (!is.null(sectors)) {
+        available_data <- available_data[available_data$sector %in% sectors, ]
+      }
+      if (!is.null(pollutants)) {
+        available_data <- available_data[available_data$pollutant %in% pollutants, ]
+      }
+      if (!is.null(years)) {
+        available_data <- available_data[available_data$year %in% years, ]
+      }
+      if (!is.null(iso2s)) {
+        available_data <- available_data[available_data$iso2 %in% iso2s, ]
+      }
+      
+      if (nrow(available_data) == 0) {
+        message("No maps to build based on provided parameters")
+        return(invisible(0))
+      }
+      
+      # Create maps directory
+      maps_dir <- file.path(self$data_dir, "maps")
+      if (!dir.exists(maps_dir)) {
+        dir.create(maps_dir, recursive = TRUE, showWarnings = FALSE)
+      }
+      
+      # Build each map
+      built_files <- list()
+      for (i in 1:nrow(available_data)) {
+        row <- available_data[i, ]
+        message(glue::glue("Building map for {row$pollutant} {row$sector} {row$year} {row$iso2}"))
+        
+        map_file <- self$generate_map(
+          pollutant = row$pollutant,
+          sector = row$sector,
+          year = row$year,
+          iso2 = row$iso2,
+          save = TRUE
+        )
+        
+        if (!is.null(map_file)) {
+          built_files[[length(built_files) + 1]] <- map_file
+        }
+      }
+      
+      message(glue::glue("Built {length(built_files)} map files"))
+      return(invisible(length(built_files)))
+    },
+
+    #' @description Get available provincial data combinations
+    #' @return Data frame with available provincial data combinations
+    get_available_provincial_data = function() {
+      # This is a base implementation - subclasses should override
+      # to provide actual available combinations
+      stop("Method must be implemented by subclass")
+    },
+
+    #' @description Generate a map raster from provincial data
+    #' @param pollutant Pollutant code
+    #' @param sector Sector code
+    #' @param year Year
+    #' @param iso2 ISO2 country code
+    #' @param save Whether to save the map file
+    #' @return Terra raster object or file path if saved
+    generate_map = function(pollutant,
+                           sector,
+                           year,
+                           iso2,
+                           save = FALSE) {
+      # This is a base implementation - subclasses should override
+      # to provide actual map generation
+      stop("Method must be implemented by subclass")
     }
   )
 )

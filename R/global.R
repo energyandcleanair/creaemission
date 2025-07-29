@@ -41,8 +41,8 @@ chart_types <- c("Bar (Horizontal)"="barh",
                  "Timeseries (area)"="area")
 # topn <- 20 # How many rows max in chart
 
-# Use CEDS sector mappings from the new ceds_sectors.R file
-ceds_sectors <- CEDS_GRIDDED_SECTORS
+# Use CEDS provincial sector mappings from the new sector_mappings.R file
+ceds_sectors <- CEDS_PROVINCIAL_SECTORS
 
 map_palettes=c("Viridis"="viridis","OrRd"="OrRdREVERSE","Inferno"="inferno")
 
