@@ -100,7 +100,8 @@ EDGAR_NATIONAL_SECTORS <- c(
 EDGAR_POLLUTANTS = c(
   "NOX"="NOx",
   "SO2"="SO2",
-  "PM2.5" = "PM2.5")
+  "PM2.5" = "PM2.5"
+  )
 
 #' @export
 EDGAR_PROVINCIAL_SECTORS <- c(

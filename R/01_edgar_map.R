@@ -47,7 +47,7 @@ EDGARMap <- R6::R6Class(
     #' @param sectors Sectors to build (default: all available)
     #' @param years Years to build (default: all available)
     #' @return Invisibly returns list of processed files
-    build = function(pollutants = c("NOx", "BC", "CH4", "CO", "CO2", "N2O", "NH3", "NMVOC", "OC", "SO2"),
+    build = function(pollutants =names(EDGAR_POLLUTANTS),
                     sectors =names(EDGAR_PROVINCIAL_SECTORS),
                     years = NULL) {
       message("Building EDGAR map data...")
@@ -125,6 +125,7 @@ EDGARMap <- R6::R6Class(
         if (length(parts) >= 3) {
           # Extract pollutant (parts[1]), year (parts[2])
           pollutant_from_file <- parts[1]
+          pollutant <- map_values(pollutant_from_file, EDGAR_POLLUTANTS)
           year_from_file <- as.numeric(parts[2])
 
           if (!is.na(year_from_file)) {
@@ -136,7 +137,7 @@ EDGARMap <- R6::R6Class(
               if (length(sector_names) > 0) {
                 for (sector_name in sector_names) {
                   available_data[[length(available_data) + 1]] <- data.frame(
-                    pollutant = pollutant_from_file,
+                    pollutant = pollutant,
                     sector = sector_name,
                     year = year_from_file,
                     stringsAsFactors = FALSE
@@ -185,19 +186,6 @@ EDGARMap <- R6::R6Class(
     #' @param iso3 ISO3 country code
     #' @return Terra raster object or NULL if not available
     get = function(pollutant, sector, year, iso3) {
-      # Convert pollutant to EDGAR format
-      edgar_poll <- switch(pollutant,
-                          "NOx" = "NOX",
-                          "BC" = "BC",
-                          "CH4" = "CH4",
-                          "CO" = "CO",
-                          "CO2" = "CO2",
-                          "N2O" = "N2O",
-                          "NH3" = "NH3",
-                          "NMVOC" = "NMVOC",
-                          "OC" = "OC",
-                          "SO2" = "SO2",
-                          pollutant)
 
       # Look for processed NetCDF file with new naming pattern
       # Pattern: pollutant_year_vversion.nc
@@ -260,25 +248,12 @@ EDGARMap <- R6::R6Class(
         dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
       }
 
-      edgar_poll <- switch(pollutant,
-                          "NOx" = "NOX",
-                          "BC" = "BC",
-                          "CH4" = "CH4",
-                          "CO" = "CO",
-                          "CO2" = "CO2",
-                          "N2O" = "N2O",
-                          "NH3" = "NH3",
-                          "NMVOC" = "NMVOC",
-                          "OC" = "OC",
-                          "SO2" = "SO2",
-                          pollutant)
+      url <- glue::glue("https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/EDGAR/datasets/v81_FT2022_AP_new/{pollutant}/{sector}/{sector}_emi_nc.zip")
 
-      url <- glue::glue("https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/EDGAR/datasets/v81_FT2022_AP_new/{edgar_poll}/{sector}/{sector}_emi_nc.zip")
-
-      dest_file_zip <- glue::glue("{cache_dir}/{edgar_poll}_{sector}_v{self$version}.zip")
+      dest_file_zip <- glue::glue("{cache_dir}/{pollutant}_{sector}_v{self$version}.zip")
 
       # Check if we already have extracted .nc files for this pollutant/sector
-      existing_files <- list.files(cache_dir, pattern = glue::glue("{edgar_poll}.*{sector}.*\\.nc$"), full.names = TRUE)
+      existing_files <- list.files(cache_dir, pattern = glue::glue("{pollutant}.*{sector}.*\\.nc$"), full.names = TRUE)
       if (length(existing_files) > 0) {
         message(glue::glue("Files already exist for {pollutant} {sector}"))
         return(existing_files)
@@ -289,7 +264,7 @@ EDGARMap <- R6::R6Class(
         message(glue::glue("Zip file exists for {pollutant} {sector}, extracting..."))
         tryCatch({
           unzip(dest_file_zip, exdir = cache_dir)
-          nc_files <- list.files(cache_dir, pattern = glue::glue("{edgar_poll}.*{sector}.*\\.nc$"), full.names = TRUE)
+          nc_files <- list.files(cache_dir, pattern = glue::glue("{pollutant}.*{sector}.*\\.nc$"), full.names = TRUE)
           if (length(nc_files) > 0) {
             message(glue::glue("Successfully extracted {length(nc_files)} files for {pollutant} {sector}"))
             return(nc_files)
@@ -308,7 +283,7 @@ EDGARMap <- R6::R6Class(
         unzip(dest_file_zip, exdir = cache_dir)
 
         # Find all .nc files for this pollutant/sector
-        nc_files <- list.files(cache_dir, pattern = glue::glue("{edgar_poll}.*{sector}.*\\.nc$"), full.names = TRUE)
+        nc_files <- list.files(cache_dir, pattern = glue::glue("{pollutant}.*{sector}.*\\.nc$"), full.names = TRUE)
 
         if (length(nc_files) > 0) {
           message(glue::glue("Successfully downloaded and extracted {length(nc_files)} files for {pollutant} {sector}"))
@@ -383,6 +358,7 @@ EDGARMap <- R6::R6Class(
       for (key in names(file_groups)) {
         parts <- strsplit(key, "_")[[1]]
         pollutant <- parts[1]
+        pollutant <- map_values(pollutant, EDGAR_POLLUTANTS)
         year <- parts[2]
 
         message(glue::glue("Processing {pollutant} for year {year} with {length(file_groups[[key]])} sectors"))
