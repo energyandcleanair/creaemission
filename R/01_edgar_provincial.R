@@ -203,7 +203,7 @@ EDGARProvincial <- R6::R6Class(
         }
 
         if (nrow(filtered_data) > 0) {
-          return(filtered_data)
+          return(self$format_results(filtered_data))
         }
       } else {
         # Get all country files if no country specified
@@ -231,7 +231,7 @@ EDGARProvincial <- R6::R6Class(
         }
 
         if (length(all_data) > 0) {
-          return(dplyr::bind_rows(all_data))
+          return(self$format_results(dplyr::bind_rows(all_data)))
         }
       }
 

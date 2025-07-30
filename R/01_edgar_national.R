@@ -107,7 +107,8 @@ EDGARNational <- R6::R6Class(
             # Extract unique combinations
             combinations <- data %>%
               dplyr::distinct(poll, sector, year, iso3) %>%
-              dplyr::rename(pollutant = poll)
+              dplyr::rename(pollutant = poll) %>%
+              mutate(iso3= tolower(iso3))
 
             available_data[[length(available_data) + 1]] <- combinations
           }
@@ -172,7 +173,7 @@ EDGARNational <- R6::R6Class(
           }
 
           if (nrow(filtered_data) > 0) {
-            return(filtered_data)
+            return(self$format_results(filtered_data))
           }
         }
       }
@@ -210,7 +211,7 @@ EDGARNational <- R6::R6Class(
         }
 
         if (length(all_data) > 0) {
-          return(dplyr::bind_rows(all_data))
+          return(self$format_results(dplyr::bind_rows(all_data)))
         }
       }
 
@@ -322,7 +323,7 @@ EDGARNational <- R6::R6Class(
       # Combine all data
       data <- lapply(xlsx_files, parse_file) %>%
         dplyr::bind_rows()
-      
+
       # Convert pollutant names to values using EDGAR_POLLUTANTS mapping
       data <- data %>%
         dplyr::mutate(poll = map_values(poll, EDGAR_POLLUTANTS))

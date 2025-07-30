@@ -16,6 +16,28 @@ SourceNational <- R6::R6Class(
       self$data_dir <- data_dir
     },
 
+    #' @description Format results to standard format
+    #' @param data Data frame to format
+    #' @return Formatted data frame
+    format_results = function(data) {
+      if (is.null(data) || nrow(data) == 0) {
+        return(data)
+      }
+      
+      # Ensure iso3 is lowercase for consistency
+      if ("iso3" %in% names(data)) {
+        data$iso3 <- tolower(data$iso3)
+      }
+      
+      # Future formatting rules can be added here:
+      # - Standardize pollutant names
+      # - Standardize sector names
+      # - Standardize units
+      # - etc.
+      
+      return(data)
+    },
+
     #' @description Build national emissions data
     #' @param ... Additional arguments passed to specific implementation
     #' @return Invisibly returns paths to saved files

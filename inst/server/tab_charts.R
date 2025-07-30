@@ -1,6 +1,7 @@
 # Add this near the top of the file, with other reactive declarations
 selected_countries <- reactiveVal(NULL)
 selected_year <- reactiveVal(NULL)
+selected_pollutant <- reactiveVal(NULL)
 
 # Add this observer to update the stored selection when input changes
 observeEvent(input$country, {
@@ -10,6 +11,118 @@ observeEvent(input$country, {
 observeEvent(input$year, {
   selected_year(input$year)
 })
+
+observeEvent(input$pollutant, {
+  selected_pollutant(input$pollutant)
+})
+
+# Reactive for current source object
+current_source <- reactive({
+  req(input$source)
+  req(input$region_type)
+  get_current_source(input$source, input$region_type)
+})
+
+# Function to validate and update selections when source changes
+validate_and_update_selections <- function(new_source, new_region_type) {
+  # Get current source object
+  source_obj <- current_source()
+
+  # Get available data from new source
+  available_data <- source_obj$list_available_data()
+  available_years <- sort(unique(available_data$year))
+  available_pollutants <- unique(available_data$pollutant)
+  available_countries <- available_data %>%
+    distinct(iso3) %>%
+    filter(iso3 != "world") %>%
+    pull(iso3)
+
+  # Validate year selection
+  current_year <- selected_year()
+  if (!is.null(current_year) && current_year %in% available_years) {
+    # Keep current year if it's available
+    year_to_use <- current_year
+  } else {
+    # Use latest available year as default
+    year_to_use <- max(available_years)
+    selected_year(year_to_use)
+  }
+
+  # Validate pollutant selection
+  current_pollutant <- selected_pollutant()
+  if (!is.null(current_pollutant) && current_pollutant %in% available_pollutants) {
+    # Keep current pollutant if it's available
+    pollutant_to_use <- current_pollutant
+  } else {
+    # Use first available pollutant as default
+    pollutant_to_use <- available_pollutants[1]
+    selected_pollutant(pollutant_to_use)
+  }
+
+  # Validate country selection
+  current_countries <- selected_countries()
+  if (!is.null(current_countries)) {
+    # Keep only countries that are available in the new source
+    valid_countries <- current_countries[current_countries %in% available_countries]
+    if (length(valid_countries) > 0) {
+      # Keep valid countries
+      countries_to_use <- valid_countries
+    } else {
+      # Use "all" as default for national, first country for provincial
+      if (new_region_type == REGIONTYPE_NATIONAL) {
+        countries_to_use <- "all"
+      } else {
+        countries_to_use <- available_countries[1]
+      }
+    }
+  } else {
+    # No previous selection, use defaults
+    if (new_region_type == REGIONTYPE_NATIONAL) {
+      countries_to_use <- "all"
+    } else {
+      countries_to_use <- available_countries[1]
+    }
+  }
+
+  # Update stored selections
+  selected_countries(countries_to_use)
+
+  return(list(
+    year = year_to_use,
+    pollutant = pollutant_to_use,
+    countries = countries_to_use
+  ))
+}
+
+# Observer for source changes
+observeEvent(input$source, {
+  req(input$source)
+  req(input$region_type)
+
+  # Validate and update selections
+  validated_selections <- validate_and_update_selections(input$source, input$region_type)
+
+  # Update UI inputs with validated selections
+  updateSelectInput(session, "year", selected = validated_selections$year)
+  updateSelectInput(session, "pollutant", selected = validated_selections$pollutant)
+  updateSelectInput(session, "country", selected = validated_selections$countries)
+})
+
+# Observer for region type changes
+observeEvent(input$region_type, {
+  req(input$source)
+  req(input$region_type)
+
+  # Validate and update selections
+  validated_selections <- validate_and_update_selections(input$source, input$region_type)
+
+  # Update UI inputs with validated selections
+  updateSelectInput(session, "year", selected = validated_selections$year)
+  updateSelectInput(session, "pollutant", selected = validated_selections$pollutant)
+  updateSelectInput(session, "country", selected = validated_selections$countries)
+})
+
+
 
 # Download Handlers ----------------------------------
 # Downloadable csv of selected dataset
@@ -32,7 +145,7 @@ emissions_raw <- reactive({
   topn <- input$topn
 
   # Get current source object
-  current_source <- get_current_source(input$source, input$region_type)
+  source_obj <- current_source()
 
   # Years
   single_year_charts <- c("barh")
@@ -51,11 +164,11 @@ emissions_raw <- reactive({
   iso3s <- input$country
   if(!is.null(iso3s) & ("all" %in% iso3s)){
     # Get latest year from available data
-    available_data <- current_source$list_available_data()
+    available_data <- source_obj$list_available_data()
     latest_year <- max(available_data$year)
 
     # Get top N countries for the latest year
-    latest_data <- current_source$get(year = latest_year, pollutant = input$pollutant)
+    latest_data <- source_obj$get(year = latest_year, pollutant = input$pollutant)
     if (!is.null(latest_data) && nrow(latest_data) > 0) {
       iso3s_top_n <- latest_data %>%
         group_by(iso3) %>%
@@ -72,7 +185,7 @@ emissions_raw <- reactive({
   }
 
   # Get emissions data from source
-  emissions_data <- current_source$get(
+  emissions_data <- source_obj$get(
     year = years,
     iso3 = iso3s,
     pollutant = input$pollutant,
@@ -246,13 +359,12 @@ output$selectYear <- renderUI({
   req(input$chart_type)
   req(input$region_type)
   req(input$source)
-  req(input$country)
 
   # Get current source object
-  current_source <- get_current_source(input$source, input$region_type)
+  source_obj <- current_source()
 
   # Get available years from actual data
-  available_data <- current_source$list_available_data()
+  available_data <- source_obj$list_available_data()
   years <- sort(unique(available_data$year))
 
   if(input$chart_type == 'barh'){
@@ -283,13 +395,13 @@ output$selectCountry <- renderUI({
   req(input$source)
 
   # Get current source object
-  current_source <- get_current_source(input$source, input$region_type)
+  source_obj <- current_source()
 
   multiple = (input$region_type==REGIONTYPE_NATIONAL)
 
   if(input$region_type==REGIONTYPE_NATIONAL){
     # Get countries from source
-    available_data <- current_source$list_available_data()
+    available_data <- source_obj$list_available_data()
     countries <- available_data %>%
       distinct(iso3) %>%
       mutate(country = iso3_to_country(iso3)) %>%
@@ -317,7 +429,7 @@ output$selectCountry <- renderUI({
     selectInput('country', 'Country', choices = countries, multiple=multiple, selected=selected)
   } else {
     # Get provincial countries from source
-    available_data <- current_source$list_available_data()
+    available_data <- source_obj$list_available_data()
     countries <- available_data %>%
       distinct(iso3) %>%
       mutate(country = iso3_to_country(iso3)) %>%
@@ -325,10 +437,15 @@ output$selectCountry <- renderUI({
       tibble::deframe()
 
     # Get previously selected country if still available
-    browser()
     prev_selected <- selected_countries()
-    if(!is.null(prev_selected) && prev_selected %in% countries) {
-      selected <- prev_selected
+    if(!is.null(prev_selected)) {
+      # Keep only countries that are still available in the new source
+      valid_selected <- prev_selected[prev_selected %in% countries]
+      if(length(valid_selected) > 0) {
+        selected <- valid_selected
+      } else {
+        selected <- countries[[1]]
+      }
     } else {
       selected <- countries[[1]]
     }
@@ -383,7 +500,27 @@ clean_country_name <- function(x){
 }
 
 output$selectPollutant <- renderUI({
-  selectInput("pollutant", "Species:", multiple=F, choices = pollutants, selected=pollutants[1])
+  req(current_source())
+
+  # Get current source object
+  source_obj <- current_source()
+
+  # Get available pollutants from source
+  available_data <- source_obj$list_available_data()
+  available_pollutants <- unique(available_data$pollutant)
+
+  # Filter pollutants to only those available in current source
+  available_pollutants_choices <- pollutants[pollutants %in% available_pollutants]
+
+  # Get previously selected pollutant if it's still available
+  prev_selected <- selected_pollutant()
+  if(!is.null(prev_selected) && prev_selected %in% available_pollutants_choices) {
+    selected <- prev_selected
+  } else {
+    selected <- available_pollutants_choices[1]
+  }
+
+  selectInput("pollutant", "Species:", multiple=F, choices = available_pollutants_choices, selected=selected)
 })
 
 output$selectColorBy <- renderUI({
