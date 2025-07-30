@@ -2,6 +2,8 @@
 #' @description R6 class for CEDS provincial emissions data
 #'
 #' @importFrom R6 R6Class
+#' @importFrom dplyr distinct rename filter
+#' @importFrom magrittr %>%
 #' @export
 CEDSProvincial <- R6::R6Class(
   "CEDSProvincial",
@@ -23,7 +25,12 @@ CEDSProvincial <- R6::R6Class(
     #' @param data_dir Data directory path
     initialize = function(version = "2024_11_25",
                           available_years = 2022:2022,
-                          data_dir = file.path("data", "ceds", "provincial")) {
+                          data_dir = NULL) {
+      # Use path resolution if data_dir is not provided
+      if (is.null(data_dir)) {
+        data_dir <- get_data_path(c("ceds", "provincial"))
+      }
+
       # Create map source
       map_source <- CEDSMap$new(
         version = version,
@@ -33,7 +40,7 @@ CEDSProvincial <- R6::R6Class(
       super$initialize(data_dir = data_dir, map_source = map_source)
       self$version <- version
       self$available_years <- available_years
-      self$cache_dir <- file.path("cache", "ceds")
+      self$cache_dir <- file.path(get_project_root(), "cache", "ceds")
 
       # Create directories if they don't exist
       for (dir in c(self$data_dir, self$cache_dir)) {
@@ -53,7 +60,7 @@ CEDSProvincial <- R6::R6Class(
     #' @return Invisibly returns paths to saved files
     build = function(iso2s,
                     years = NULL,
-                    pollutants = c("NOx", "BC", "CH4", "CO", "CO2", "N2O", "NH3", "NMVOC", "OC", "SO2"),
+                    pollutants = CEDS_POLLUTANTS,
                     level = 1,
                     res = "low",
                     buffer_into_sea_km = 20) {
@@ -95,8 +102,8 @@ CEDSProvincial <- R6::R6Class(
         ))
       }
 
-      # Get all RDS files in provincial data directory
-      rds_files <- list.files(self$data_dir, pattern = "\\.rds$", full.names = TRUE)
+      # Get all RDS files in provincial data directory and subdirectories
+      rds_files <- list.files(self$data_dir, pattern = "\\.rds$", full.names = TRUE, recursive = TRUE)
 
       if (length(rds_files) == 0) {
         return(data.frame(
@@ -110,7 +117,7 @@ CEDSProvincial <- R6::R6Class(
 
       # Read all files and combine data
       available_data <- list()
-      
+
       for (file in rds_files) {
         tryCatch({
           data <- readRDS(file)
@@ -119,7 +126,7 @@ CEDSProvincial <- R6::R6Class(
             combinations <- data %>%
               dplyr::distinct(poll, sector, year, iso3) %>%
               dplyr::rename(pollutant = poll)
-            
+
             available_data[[length(available_data) + 1]] <- combinations
           }
         }, error = function(e) {
@@ -127,7 +134,7 @@ CEDSProvincial <- R6::R6Class(
           warning(glue::glue("Could not read RDS file {file}: {e$message}"))
         })
       }
-      
+
       if (length(available_data) == 0) {
         return(data.frame(
           pollutant = character(),
@@ -137,22 +144,22 @@ CEDSProvincial <- R6::R6Class(
           stringsAsFactors = FALSE
         ))
       }
-      
+
       result <- do.call(rbind, available_data)
-      
+
       # Apply filters if provided
       if (!is.null(pollutant)) {
         result <- result[result$pollutant %in% pollutant, ]
       }
-      
+
       if (!is.null(year)) {
         result <- result[result$year %in% year, ]
       }
-      
+
       if (!is.null(sector)) {
         result <- result[result$sector %in% sector, ]
       }
-      
+
       return(result)
     },
 
@@ -163,6 +170,32 @@ CEDSProvincial <- R6::R6Class(
     #' @param iso3 ISO3 country code (can be NULL to get all countries)
     #' @return Data frame with emissions data or NULL if not available
     get = function(pollutant = NULL, sector = NULL, year = NULL, iso3 = NULL) {
+      # Try by_year files first
+      if (!is.null(year)) {
+        by_year_file <- file.path(self$data_dir, "by_year", paste0("_provincial_", year, ".rds"))
+
+        if (file.exists(by_year_file)) {
+          data <- readRDS(by_year_file)
+
+          # Apply filters only if parameters are not NULL
+          filtered_data <- data
+          if (!is.null(pollutant)) {
+            filtered_data <- filtered_data %>% dplyr::filter(poll %in% !!pollutant)
+          }
+          if (!is.null(sector)) {
+            filtered_data <- filtered_data %>% dplyr::filter(sector %in% !!sector)
+          }
+          if (!is.null(iso3)) {
+            filtered_data <- filtered_data %>% dplyr::filter(tolower(iso3) %in% tolower(!!iso3))
+          }
+
+          if (nrow(filtered_data) > 0) {
+            return(filtered_data)
+          }
+        }
+      }
+
+      # Try direct country files
       if (!is.null(iso3)) {
         target_iso3 <- tolower(iso3)
         filepath <- file.path(self$data_dir, paste0(target_iso3, ".rds"))
@@ -172,7 +205,7 @@ CEDSProvincial <- R6::R6Class(
         }
 
         data <- readRDS(filepath)
-        
+
         # Apply filters only if parameters are not NULL
         filtered_data <- data
         if (!is.null(pollutant)) {
@@ -191,11 +224,11 @@ CEDSProvincial <- R6::R6Class(
       } else {
         # Get all country files if no country specified
         rds_files <- list.files(self$data_dir, pattern = "\\.rds$", full.names = TRUE)
-        
+
         all_data <- list()
         for (file in rds_files) {
           data <- readRDS(file)
-          
+
           # Apply filters only if parameters are not NULL
           filtered_data <- data
           if (!is.null(pollutant)) {

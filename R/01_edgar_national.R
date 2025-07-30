@@ -2,6 +2,8 @@
 #' @description R6 class for EDGAR national emissions data
 #'
 #' @importFrom R6 R6Class
+#' @importFrom dplyr distinct rename filter
+#' @importFrom magrittr %>%
 #' @export
 EDGARNational <- R6::R6Class(
   "EDGARNational",
@@ -26,12 +28,17 @@ EDGARNational <- R6::R6Class(
     #' @param data_dir Data directory path
     initialize = function(version = "v8.1",
                           available_years = 2000:2022,
-                          data_dir = file.path("data", "edgar", "national")) {
+                          data_dir = NULL) {
+      # Use path resolution if data_dir is not provided
+      if (is.null(data_dir)) {
+        data_dir <- get_data_path(c("edgar", "national"))
+      }
+
       super$initialize(data_dir = data_dir)
       self$version <- version
       self$available_years <- available_years
       self$base_url <- "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/EDGAR/datasets"
-      self$cache_dir <- file.path("cache", "edgar")
+      self$cache_dir <- file.path(get_project_root(), "cache", "edgar")
 
       # Create directories if they don't exist
       for (dir in c(self$data_dir, self$cache_dir)) {
@@ -78,7 +85,7 @@ EDGARNational <- R6::R6Class(
 
       # Get all RDS files
       rds_files <- list.files(by_year_dir, pattern = "\\.rds$", full.names = TRUE)
-      
+
       if (length(rds_files) == 0) {
         return(data.frame(
           pollutant = character(),
@@ -91,7 +98,7 @@ EDGARNational <- R6::R6Class(
 
       # Read all files and combine data
       available_data <- list()
-      
+
       for (file in rds_files) {
         tryCatch({
           data <- readRDS(file)
@@ -100,7 +107,7 @@ EDGARNational <- R6::R6Class(
             combinations <- data %>%
               dplyr::distinct(poll, sector, year, iso3) %>%
               dplyr::rename(pollutant = poll)
-            
+
             available_data[[length(available_data) + 1]] <- combinations
           }
         }, error = function(e) {
@@ -108,7 +115,7 @@ EDGARNational <- R6::R6Class(
           warning(glue::glue("Could not read RDS file {file}: {e$message}"))
         })
       }
-      
+
       if (length(available_data) == 0) {
         return(data.frame(
           pollutant = character(),
@@ -118,22 +125,22 @@ EDGARNational <- R6::R6Class(
           stringsAsFactors = FALSE
         ))
       }
-      
+
       result <- do.call(rbind, available_data)
-      
+
       # Apply filters if provided
       if (!is.null(pollutant)) {
         result <- result[result$pollutant %in% pollutant, ]
       }
-      
+
       if (!is.null(year)) {
         result <- result[result$year %in% year, ]
       }
-      
+
       if (!is.null(sector)) {
         result <- result[result$sector %in% sector, ]
       }
-      
+
       return(result)
     },
 
@@ -150,17 +157,17 @@ EDGARNational <- R6::R6Class(
 
         if (file.exists(by_year_file)) {
           data <- readRDS(by_year_file)
-          
+
           # Apply filters only if parameters are not NULL
           filtered_data <- data
           if (!is.null(pollutant)) {
-            filtered_data <- filtered_data %>% dplyr::filter(poll == !!pollutant)
+            filtered_data <- filtered_data %>% dplyr::filter(poll %in% !!pollutant)
           }
           if (!is.null(sector)) {
-            filtered_data <- filtered_data %>% dplyr::filter(sector == !!sector)
+            filtered_data <- filtered_data %>% dplyr::filter(sector %in% !!sector)
           }
           if (!is.null(iso3)) {
-            filtered_data <- filtered_data %>% dplyr::filter(tolower(iso3) == tolower(!!iso3))
+            filtered_data <- filtered_data %>% dplyr::filter(tolower(iso3) %in% tolower(!!iso3))
           }
 
           if (nrow(filtered_data) > 0) {
@@ -183,17 +190,17 @@ EDGARNational <- R6::R6Class(
         all_data <- list()
         for (file in country_files) {
           data <- readRDS(file)
-          
+
           # Apply filters only if parameters are not NULL
           filtered_data <- data
           if (!is.null(pollutant)) {
-            filtered_data <- filtered_data %>% dplyr::filter(poll == !!pollutant)
+            filtered_data <- filtered_data %>% dplyr::filter(poll %in% !!pollutant)
           }
           if (!is.null(sector)) {
-            filtered_data <- filtered_data %>% dplyr::filter(sector == !!sector)
+            filtered_data <- filtered_data %>% dplyr::filter(sector %in% !!sector)
           }
           if (!is.null(year)) {
-            filtered_data <- filtered_data %>% dplyr::filter(year == !!year)
+            filtered_data <- filtered_data %>% dplyr::filter(year %in% !!year)
           }
 
           if (nrow(filtered_data) > 0) {
@@ -243,7 +250,7 @@ EDGARNational <- R6::R6Class(
     #' @description Download EDGAR data
     #' @param pollutants Vector of pollutants to download
     #' @return Path to downloaded data directory
-    download_data = function(pollutants = c("BC", "CO", "NH3", "NMVOC", "NOx", "OC", "PM10", "PM25", "SO2")) {
+    download_data = function(pollutants = EDGAR_POLLUTANTS) {
       # Create directory for downloaded files
       download_dir <- file.path(self$cache_dir, "edgar_raw")
       if (!dir.exists(download_dir)) {

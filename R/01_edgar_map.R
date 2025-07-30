@@ -23,11 +23,16 @@ EDGARMap <- R6::R6Class(
     #' @param data_dir Data directory path
     initialize = function(version = "v8.1",
                           available_years = 2022:2022,
-                          data_dir = file.path("data", "edgar", "maps")) {
+                          data_dir = NULL) {
+      # Use path resolution if data_dir is not provided
+      if (is.null(data_dir)) {
+        data_dir <- get_data_path(c("edgar", "maps"))
+      }
+      
       super$initialize(data_dir = data_dir)
       self$version <- version
       self$available_years <- available_years
-      self$cache_dir <- file.path("cache", "edgar")
+      self$cache_dir <- file.path(get_project_root(), "cache", "edgar")
 
       # Create directories if they don't exist
       for (dir in c(self$data_dir, self$cache_dir)) {

@@ -28,6 +28,7 @@ emissions_raw <- reactive({
   req(input$region_type)
   req(input$country)
   req(input$source)
+  req(input$pollutant)
   topn <- input$topn
 
   # Get current source object
@@ -54,7 +55,7 @@ emissions_raw <- reactive({
     latest_year <- max(available_data$year)
 
     # Get top N countries for the latest year
-    latest_data <- current_source$get(year = latest_year)
+    latest_data <- current_source$get(year = latest_year, pollutant = input$pollutant)
     if (!is.null(latest_data) && nrow(latest_data) > 0) {
       iso3s_top_n <- latest_data %>%
         group_by(iso3) %>%
@@ -73,7 +74,8 @@ emissions_raw <- reactive({
   # Get emissions data from source
   emissions_data <- current_source$get(
     year = years,
-    iso3 = iso3s
+    iso3 = iso3s,
+    pollutant = input$pollutant,
   )
 
   # Return NULL if no data available
@@ -86,19 +88,17 @@ emissions_raw <- reactive({
 
 
 emissions <- reactive({
-  req(input$pollutant)
   req(input$country)
   req(input$chart_type)
   req(emissions_raw())
 
   e <- emissions_raw()
-
   e %>%
-    filter(poll==input$pollutant) %>%
     filter(("all" %in% input$country & iso3 != "world") | iso3 %in% input$country) %>%
-    mutate(sector=clean_sector_name(sector),
-           fuel=clean_fuel_name(fuel),
-           country=clean_country_name(country))
+    mutate(
+      # sector=clean_sector_name(sector),
+      # fuel=clean_fuel_name(fuel),
+      country=iso3_to_country(iso3))
 })
 
 
@@ -120,16 +120,16 @@ output$plot <- renderPlotly({
   req(chart_type)
 
   e <- emissions()
-  
+
   # Check if we have data
   if (is.null(e) || nrow(e) == 0) {
     # Create an empty plot with a message
     empty_plot <- ggplot() +
-      annotate("text", x = 0.5, y = 0.5, label = "No data available for the selected parameters", 
+      annotate("text", x = 0.5, y = 0.5, label = "No data available for the selected parameters",
                size = 6, color = "gray50") +
       theme_void() +
       theme(plot.background = element_rect(fill = "white"))
-    
+
     return(ggplotly(empty_plot))
   }
 
@@ -247,14 +247,14 @@ output$selectYear <- renderUI({
 
   # Get current source object
   current_source <- get_current_source(input$source, input$region_type)
-  
+
   # Get available years from actual data
   available_data <- current_source$list_available_data()
   years <- sort(unique(available_data$year))
 
   if(input$chart_type == 'barh'){
     latest_year <- max(years)
-    
+
     # Get previously selected year if it's still available
     prev_selected <- selected_year()
     if(!is.null(prev_selected) && prev_selected %in% years) {
@@ -281,7 +281,7 @@ output$selectCountry <- renderUI({
 
   # Get current source object
   current_source <- get_current_source(input$source, input$region_type)
-  
+
   multiple = (input$region_type==REGIONTYPE_NATIONAL)
 
   if(input$region_type==REGIONTYPE_NATIONAL){

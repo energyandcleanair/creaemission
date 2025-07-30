@@ -28,8 +28,7 @@ test_that("EDGAR national source works correctly", {
   expect_true(all(c("pollutant", "sector", "year") %in% names(available_data)))
 
   # Test 5: Get data after build
-  result <- edgar_source$get(test_pollutant, test_sector, test_year) %>%
-    filter(tolower(iso3) == tolower(test_iso3))
+  result <- edgar_source$get(test_pollutant, test_sector, test_year, iso
   expect_false(is.null(result))
   expect_gt(nrow(result), 0)
   expect_true(all(c("iso3", "poll", "sector", "year", "value") %in% names(result)))

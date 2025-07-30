@@ -6,11 +6,13 @@
 iso3_to_country <- function(iso3) {
   result <- countrycode(iso3, "iso3c", "country.name",
               custom_match = c(
-                "GLOBAL" = "Global",
+                "GLOBAL" = "International",
+                "SEA" = "International",
+                "AIR" = "International",
                 "SRB (KOSOVO)" = "Kosovo",  # Kosovo's unofficial ISO3 code
                 "WORLD" = "World"
               ))
-  
+
   # Return the original value if countrycode returns NA
   ifelse(is.na(result), iso3, result)
 }
@@ -69,4 +71,56 @@ clean_country_name <- function(x){
   # replace NA with International
   x[is.na(x)] <- "International"
   x
+}
+
+#' Get the project root directory
+#' @return Path to the project root directory
+get_project_root <- function() {
+  # Try to find the project root by looking for key files
+  current_dir <- getwd()
+
+  # Check if we're in the inst directory
+  if (basename(current_dir) == "inst") {
+    return(dirname(current_dir))
+  }
+
+  # Check if we're in the project root (has data/ and R/ directories)
+  if (dir.exists("data") && dir.exists("R")) {
+    return(current_dir)
+  }
+
+  # Check if we're in a subdirectory of the project
+  parent_dir <- dirname(current_dir)
+  if (dir.exists(file.path(parent_dir, "data")) && dir.exists(file.path(parent_dir, "R"))) {
+    return(parent_dir)
+  }
+
+  # If we can't find it, assume we're in the project root
+  return(current_dir)
+}
+
+#' Get the data directory path
+#' @param subdir Optional subdirectory within data
+#' @return Path to the data directory
+get_data_path <- function(subdir = NULL) {
+  project_root <- get_project_root()
+  data_path <- file.path(project_root, "data")
+
+  if (!is.null(subdir)) {
+    if (is.character(subdir) && length(subdir) > 0) {
+      # Handle vector of subdirectories
+      for (dir in subdir) {
+        data_path <- file.path(data_path, dir)
+      }
+    }
+  }
+
+  return(data_path)
+}
+
+#' Get the R directory path
+#' @return Path to the R directory
+get_r_path <- function() {
+  project_root <- get_project_root()
+  return(file.path(project_root, "R"))
 }

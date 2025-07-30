@@ -5,10 +5,12 @@
 #' @importFrom tibble tibble
 
 # CEDS Sector Mappings
+CEDS_POLLUTANTS <- c("NOx", "BC", "CH4", "CO", "CO2", "N2O", "NH3", "NMVOC", "OC", "SO2")
+
 #' @export
 CEDS_NATIONAL_SECTORS <- c(
   "1A1a_Electricity-public" = "Energy",
-  "1A1b_Industry" = "Energy", 
+  "1A1b_Industry" = "Energy",
   "1A1c_Other-transformation" = "Energy",
   "1A2_Manufacturing" = "Industrial",
   "1A3_Transport" = "Transportation",
@@ -60,7 +62,7 @@ CEDS_NATIONAL_SECTORS <- c(
 #' @export
 CEDS_PROVINCIAL_SECTORS <- c(
   "0" = "Agriculture",
-  "1" = "Energy", 
+  "1" = "Energy",
   "2" = "Industrial",
   "3" = "Transportation",
   "4" = "Residential, Commercial, Other",
@@ -73,7 +75,7 @@ CEDS_PROVINCIAL_SECTORS <- c(
 #' @export
 EDGAR_NATIONAL_SECTORS <- c(
   "Energy" = "Energy",
-  "Industry" = "Industry", 
+  "Industry" = "Industry",
   "Transport" = "Transport",
   "Residential and other sectors" = "Residential and other sectors",
   "Agriculture" = "Agriculture",
@@ -83,13 +85,17 @@ EDGAR_NATIONAL_SECTORS <- c(
   "Total" = "Total"
 )
 
+
+# EDGAR_POLLUTANTS = c("BC", "CO", "NH3", "NMVOC", "NOx", "OC", "PM10", "PM25", "SO2")
+EDGAR_POLLUTANTS = c("NOx", "SO2", "PM25")
+
 #' @export
 EDGAR_PROVINCIAL_SECTORS <- c(
   "ENE" = "Energy",
   "REF_TRF" = "Refineries and transformation",
   "IND" = "Industry",
   "TNR_Aviation_CDS" = "Transport - Aviation (CDS)",
-  "TNR_Aviation_CRS" = "Transport - Aviation (CRS)", 
+  "TNR_Aviation_CRS" = "Transport - Aviation (CRS)",
   "TNR_Aviation_LTO" = "Transport - Aviation (LTO)",
   "TNR_Aviation_SPS" = "Transport - Aviation (SPS)",
   "TRO" = "Transport - Road",
@@ -123,17 +129,17 @@ EDGAR_PROVINCIAL_SECTORS <- c(
 get_sector_name <- function(sector_code, source = "CEDS", type = "national") {
   # Determine which mapping to use
   mapping_name <- paste0(toupper(source), "_", toupper(type), "_SECTORS")
-  
+
   if (!exists(mapping_name)) {
     stop(glue::glue("Unknown source/type combination: {source}/{type}"))
   }
-  
+
   mapping <- get(mapping_name)
-  
+
   if (!sector_code %in% names(mapping)) {
     stop(glue::glue("Unknown sector code '{sector_code}' for {source} {type} data"))
   }
-  
+
   return(unname(mapping[sector_code]))
 }
 
@@ -161,11 +167,11 @@ validate_sector_code <- function(sector_code, source = "CEDS", type = "national"
 #' @export
 get_available_sectors <- function(source = "CEDS", type = "national") {
   mapping_name <- paste0(toupper(source), "_", toupper(type), "_SECTORS")
-  
+
   if (!exists(mapping_name)) {
     stop(glue::glue("Unknown source/type combination: {source}/{type}"))
   }
-  
+
   mapping <- get(mapping_name)
   return(names(mapping))
 }
@@ -178,17 +184,17 @@ get_available_sectors <- function(source = "CEDS", type = "national") {
 #' @export
 get_sector_table <- function(source = "CEDS", type = "national") {
   mapping_name <- paste0(toupper(source), "_", toupper(type), "_SECTORS")
-  
+
   if (!exists(mapping_name)) {
     stop(glue::glue("Unknown source/type combination: {source}/{type}"))
   }
-  
+
   mapping <- get(mapping_name)
-  
+
   result <- tibble::tibble(
     sector_code = names(mapping),
     sector_name = unname(mapping)
   )
-  
+
   return(result[order(result$sector_code), ])
-} 
+}

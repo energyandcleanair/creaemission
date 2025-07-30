@@ -44,11 +44,10 @@ EmissionsSourceProvincial <- R6::R6Class(
 
       self$data_dir <- file.path("data", tolower(source_name))
       self$provincial_data_dir <- file.path(self$data_dir, "provincial")
-      self$gridded_data_dir <- file.path(self$data_dir, "gridded")
       self$cache_dir <- file.path("cache", tolower(source_name))
 
       # Create directories if they don't exist
-      for (dir in c(self$data_dir, self$provincial_data_dir, self$cache_dir, self$gridded_data_dir)) {
+      for (dir in c(self$data_dir, self$provincial_data_dir, self$cache_dir)) {
         if (!dir.exists(dir)) {
           dir.create(dir, recursive = TRUE, showWarnings = FALSE)
         }
@@ -267,10 +266,10 @@ EmissionsSourceProvincial <- R6::R6Class(
                          pollutants = NULL,
                          years = NULL,
                          iso2s = NULL) {
-      
+
       # Get available provincial data combinations
       available_data <- self$get_available_provincial_data()
-      
+
       # Filter by parameters if provided
       if (!is.null(sectors)) {
         available_data <- available_data[available_data$sector %in% sectors, ]
@@ -284,24 +283,24 @@ EmissionsSourceProvincial <- R6::R6Class(
       if (!is.null(iso2s)) {
         available_data <- available_data[available_data$iso2 %in% iso2s, ]
       }
-      
+
       if (nrow(available_data) == 0) {
         message("No maps to build based on provided parameters")
         return(invisible(0))
       }
-      
+
       # Create maps directory
       maps_dir <- file.path(self$data_dir, "maps")
       if (!dir.exists(maps_dir)) {
         dir.create(maps_dir, recursive = TRUE, showWarnings = FALSE)
       }
-      
+
       # Build each map
       built_files <- list()
       for (i in 1:nrow(available_data)) {
         row <- available_data[i, ]
         message(glue::glue("Building map for {row$pollutant} {row$sector} {row$year} {row$iso2}"))
-        
+
         map_file <- self$generate_map(
           pollutant = row$pollutant,
           sector = row$sector,
@@ -309,12 +308,12 @@ EmissionsSourceProvincial <- R6::R6Class(
           iso2 = row$iso2,
           save = TRUE
         )
-        
+
         if (!is.null(map_file)) {
           built_files[[length(built_files) + 1]] <- map_file
         }
       }
-      
+
       message(glue::glue("Built {length(built_files)} map files"))
       return(invisible(length(built_files)))
     },

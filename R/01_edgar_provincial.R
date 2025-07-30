@@ -2,6 +2,7 @@
 #' @description R6 class for EDGAR provincial emissions data
 #'
 #' @importFrom R6 R6Class
+#' @importFrom dplyr distinct rename filter %>%
 #' @importFrom tidyr pivot_longer
 #' @importFrom lubridate year floor_date
 #' @importFrom stringr str_extract str_replace
@@ -28,7 +29,12 @@ EDGARProvincial <- R6::R6Class(
     #' @param data_dir Data directory path
     initialize = function(version = "v8.1",
                           available_years = 2000:2022,
-                          data_dir = file.path("data", "edgar", "provincial")) {
+                          data_dir = NULL) {
+      # Use path resolution if data_dir is not provided
+      if (is.null(data_dir)) {
+        data_dir <- get_data_path(c("edgar", "provincial"))
+      }
+      
       # Create map source
       map_source <- EDGARMap$new(
         version = version,
@@ -38,7 +44,7 @@ EDGARProvincial <- R6::R6Class(
       super$initialize(data_dir = data_dir, map_source = map_source)
       self$version <- version
       self$available_years <- available_years
-      self$cache_dir <- file.path("cache", "edgar")
+      self$cache_dir <- file.path(get_project_root(), "cache", "edgar")
 
       # Create directories if they don't exist
       for (dir in c(self$data_dir, self$cache_dir)) {
@@ -58,7 +64,7 @@ EDGARProvincial <- R6::R6Class(
     #' @return Invisibly returns paths to saved files
     build = function(iso2s,
                     years = NULL,
-                    pollutants = c("BC", "CO", "NH3", "NMVOC", "NOX", "OC", "PM10", "PM25", "SO2"),
+                    pollutants = EDGAR_POLLUTANTS,
                     sectors = names(EDGAR_PROVINCIAL_SECTORS),
                     level = 1,
                     res = "low",
@@ -333,7 +339,7 @@ EDGARProvincial <- R6::R6Class(
         sectors <- names(EDGAR_PROVINCIAL_SECTORS)
       }
 
-      dir_netcdf <- file.path(self$cache_dir, "gridded")
+      dir_netcdf <- file.path(self$cache_dir, "netcdf")
       if (!dir.exists(dir_netcdf)) {
         dir.create(dir_netcdf, recursive = TRUE, showWarnings = FALSE)
       }
@@ -344,7 +350,7 @@ EDGARProvincial <- R6::R6Class(
         for (sector in sectors) {
           for (year in years) {
             message(glue::glue("Downloading EDGAR gridded data for {poll} {sector} in {year}"))
-            nc_files_sector <- self$download_nc(poll, sector, year, dir_netcdf)
+            nc_files_sector <- self$map_source$download_nc(poll, sector, year)
             if (length(nc_files_sector) > 0) {
               nc_files <- c(nc_files, nc_files_sector)
             }
@@ -476,33 +482,6 @@ EDGARProvincial <- R6::R6Class(
       return(invisible(list(
         country_files = country_files
       )))
-    },
-
-    #' @description Download NetCDF file for a specific pollutant, sector, and year
-    #' @param pollutant Pollutant code
-    #' @param sector Sector code
-    #' @param year Year
-    #' @param dir Directory to save the file
-    #' @return List of downloaded file paths
-    download_nc = function(pollutant, sector, year, dir) {
-      # Use map source to download NetCDF files
-      # For EDGAR, we need to download per pollutant/sector/year combination
-      nc_files <- self$map_source$download_nc(pollutant, sector, year)
-
-      if (length(nc_files) > 0) {
-        # Copy from cache to requested directory
-        copied_files <- list()
-        for (nc_file in nc_files) {
-          if (!is.null(nc_file) && file.exists(nc_file)) {
-            dest_file <- file.path(dir, basename(nc_file))
-            file.copy(nc_file, dest_file, overwrite = TRUE)
-            copied_files <- c(copied_files, dest_file)
-          }
-        }
-        return(copied_files)
-      }
-
-      return(list())
     },
 
     #' @description Filter files by year

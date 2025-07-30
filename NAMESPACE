@@ -21,6 +21,11 @@ export(CEDS_PROVINCIAL_SECTORS)
 export(EDGAR_NATIONAL_SECTORS)
 export(EDGAR_PROVINCIAL_SECTORS)
 
+# Region types
+export(REGIONTYPE_NATIONAL)
+export(REGIONTYPE_PROVINCIAL)
+export(REGIONTYPES)
+
 # Utility functions
 export(build_emissions_catalog)
 export(build_emissions_maps)
