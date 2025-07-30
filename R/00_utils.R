@@ -124,3 +124,19 @@ get_r_path <- function() {
   project_root <- get_project_root()
   return(file.path(project_root, "R"))
 }
+
+#' Map values using a named mapping
+#'
+#' @param values Vector of values to convert
+#' @param mapping Named vector or list providing the mapping (names -> values)
+#' @return Vector of converted values
+#' @export
+map_values <- function(values, mapping) {
+  sapply(values, function(v) {
+    if (v %in% names(mapping)) {
+      mapping[[v]]
+    } else {
+      v
+    }
+  })
+}

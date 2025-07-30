@@ -2,7 +2,8 @@
 #' @description R6 class for CEDS national emissions data
 #'
 #' @importFrom R6 R6Class
-#' @importFrom dplyr distinct rename filter %>%
+#' @importFrom dplyr distinct rename filter bind_rows mutate %>%
+#' @importFrom countrycode countrycode
 #' @export
 CEDSNational <- R6::R6Class(
   "CEDSNational",
@@ -293,6 +294,10 @@ CEDSNational <- R6::R6Class(
       # Combine all data
       data <- lapply(csv_files, parse_file) %>%
         dplyr::bind_rows()
+
+      # Map pollutants
+      data <- data %>%
+        mutate(poll = map_values(poll, CEDS_POLLUTANTS))
 
       return(data)
     },

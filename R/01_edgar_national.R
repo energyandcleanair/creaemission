@@ -2,8 +2,9 @@
 #' @description R6 class for EDGAR national emissions data
 #'
 #' @importFrom R6 R6Class
-#' @importFrom dplyr distinct rename filter
+#' @importFrom dplyr distinct rename filter bind_rows mutate
 #' @importFrom magrittr %>%
+#' @importFrom countrycode countrycode
 #' @export
 EDGARNational <- R6::R6Class(
   "EDGARNational",
@@ -303,7 +304,6 @@ EDGARNational <- R6::R6Class(
       parse_file <- function(file) {
         # This is a placeholder - actual implementation would depend on EDGAR format
         message("Parsing file: ", basename(file))
-        poll <- gsub(".*EDGAR_([A-Za-z0-9\\.]+)_.*", "\\1", basename(file))
         readxl::read_xlsx(file, sheet = "IPCC 2006", skip=9) %>%
           pivot_longer(cols = starts_with("Y_"), names_to = "year", values_to = "value") %>%
           group_by(
@@ -322,6 +322,10 @@ EDGARNational <- R6::R6Class(
       # Combine all data
       data <- lapply(xlsx_files, parse_file) %>%
         dplyr::bind_rows()
+      
+      # Convert pollutant names to values using EDGAR_POLLUTANTS mapping
+      data <- data %>%
+        dplyr::mutate(poll = map_values(poll, EDGAR_POLLUTANTS))
 
       return(data)
     },

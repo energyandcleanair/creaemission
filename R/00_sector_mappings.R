@@ -5,7 +5,18 @@
 #' @importFrom tibble tibble
 
 # CEDS Sector Mappings
-CEDS_POLLUTANTS <- c("NOx", "BC", "CH4", "CO", "CO2", "N2O", "NH3", "NMVOC", "OC", "SO2")
+CEDS_POLLUTANTS <- c(
+  "NOx" = "NOx",
+  "BC" = "BC",
+  "CH4" = "CH4",
+  "CO" = "CO",
+  "CO2" = "CO2",
+  "N2O" = "N2O",
+  "NH3" = "NH3",
+  "NMVOC" = "NMVOC",
+  "OC" = "OC",
+  "SO2" = "SO2"
+)
 
 #' @export
 CEDS_NATIONAL_SECTORS <- c(
@@ -81,13 +92,15 @@ EDGAR_NATIONAL_SECTORS <- c(
   "Agriculture" = "Agriculture",
   "Waste" = "Waste",
   "International shipping" = "International shipping",
-  "International aviation" = "International aviation",
-  "Total" = "Total"
+  "International aviation" = "International aviation"
+  # "Total" = "Total"
 )
 
-
-# EDGAR_POLLUTANTS = c("BC", "CO", "NH3", "NMVOC", "NOx", "OC", "PM10", "PM25", "SO2")
-EDGAR_POLLUTANTS = c("NOx", "SO2", "PM25")
+# EDGAR_POLLUTANTS = c("BC", "CO", "NH3", "NMVOC", "NOX", "OC", "PM10", "PM2.5", "SO2"),
+EDGAR_POLLUTANTS = c(
+  "NOX"="NOx",
+  "SO2"="SO2",
+  "PM2.5" = "PM2.5")
 
 #' @export
 EDGAR_PROVINCIAL_SECTORS <- c(
@@ -115,8 +128,8 @@ EDGAR_PROVINCIAL_SECTORS <- c(
   "AGS" = "Agriculture",
   "SWD_LDF" = "Waste - Landfills",
   "SWD_INC" = "Waste - Incineration",
-  "WWT" = "Wastewater treatment",
-  "TOTALS" = "Total Emissions"
+  "WWT" = "Wastewater treatment"
+  # "TOTALS" = "Total Emissions"
 )
 
 #' @title Get Sector Name

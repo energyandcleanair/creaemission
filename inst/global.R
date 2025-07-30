@@ -34,8 +34,8 @@ pollutants <- c("NOx"="NOx",
                 "CO"="CO",
                 "N2O"="N2O"
 )
-color_bys <- c("Country"="country", "Sector"="sector", "Fuel"="fuel")
-group_bys <- c("Country"="country", "Sector"="sector", "Fuel"="fuel")
+color_bys <- c("Country/Province"="region_name", "Sector"="sector", "Fuel"="fuel")
+group_bys <- c("Country/Province"="region_name", "Sector"="sector", "Fuel"="fuel")
 
 chart_types <- c("Bar (Horizontal)"="barh",
                  "Timeseries (area)"="area")

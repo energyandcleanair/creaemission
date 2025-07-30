@@ -28,7 +28,7 @@ EDGARMap <- R6::R6Class(
       if (is.null(data_dir)) {
         data_dir <- get_data_path(c("edgar", "maps"))
       }
-      
+
       super$initialize(data_dir = data_dir)
       self$version <- version
       self$available_years <- available_years
@@ -63,7 +63,7 @@ EDGARMap <- R6::R6Class(
         for (sector in sectors) {
           for (year in years) {
             message(glue::glue("Downloading EDGAR map data for {poll} {sector} in {year}"))
-            nc_files <- self$download_nc(poll, sector, year)
+            nc_files <- self$download_nc(poll, sector)
             if (length(nc_files) > 0) {
               # Filter files by year
               filtered_files <- self$filter_files_by_year(nc_files, year)
@@ -252,9 +252,8 @@ EDGARMap <- R6::R6Class(
     #' @description Download NetCDF file to cache
     #' @param pollutant Pollutant code
     #' @param sector Sector code
-    #' @param year Year
     #' @return Path to downloaded file or NULL if download failed
-    download_nc = function(pollutant, sector, year) {
+    download_nc = function(pollutant, sector) {
       # Create cache directory
       cache_dir <- file.path(self$cache_dir, "netcdf")
       if (!dir.exists(cache_dir)) {

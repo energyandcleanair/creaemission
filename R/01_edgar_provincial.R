@@ -34,7 +34,7 @@ EDGARProvincial <- R6::R6Class(
       if (is.null(data_dir)) {
         data_dir <- get_data_path(c("edgar", "provincial"))
       }
-      
+
       # Create map source
       map_source <- EDGARMap$new(
         version = version,
@@ -273,23 +273,15 @@ EDGARProvincial <- R6::R6Class(
     #' @return Data frame with provincial emissions
     extract_provincial_data = function(iso2s,
                                       years = NULL,
-                                      pollutants = NULL,
-                                      sectors = NULL,
+                                      pollutants = names(EDGAR_POLLUTANTS),
+                                      sectors = names(EDGAR_PROVINCIAL_SECTORS),
                                       level = 1,
                                       res = "low",
                                       buffer_into_sea_km = 20) {
+                                        
       # Use all available years if years is NULL
       if (is.null(years)) {
         years <- self$available_years
-      }
-
-      # Default pollutants if NULL
-      if (is.null(pollutants)) {
-        pollutants <- c("BC", "CO", "NH3", "NMVOC", "NOX", "OC", "PM10", "PM25", "SO2")
-      }
-
-      if (is.null(sectors)) {
-        sectors <- names(EDGAR_PROVINCIAL_SECTORS)
       }
 
       # Process each country separately to avoid memory issues
@@ -329,7 +321,7 @@ EDGARProvincial <- R6::R6Class(
     #' @param sectors Vector of sectors to process (defaults to all sectors if NULL)
     #' @return List with gridded directory path and filtered files
     download_gridded_data = function(years = NULL,
-                                    pollutants = c("BC", "CO", "NH3", "NMVOC", "NOX", "OC", "PM10", "PM25", "SO2"),
+                                    pollutants = names(EDGAR_POLLUTANTS),
                                     sectors = NULL) {
       if (is.null(years)) {
         years <- self$available_years
@@ -348,14 +340,13 @@ EDGARProvincial <- R6::R6Class(
       # Download each pollutant/sector/year combination
       for (poll in pollutants) {
         for (sector in sectors) {
-          for (year in years) {
-            message(glue::glue("Downloading EDGAR gridded data for {poll} {sector} in {year}"))
-            nc_files_sector <- self$map_source$download_nc(poll, sector, year)
-            if (length(nc_files_sector) > 0) {
-              nc_files <- c(nc_files, nc_files_sector)
+            message(glue::glue("Downloading EDGAR gridded data for {poll} {sector}"))
+            nc_files_poll_sector <- self$map_source$download_nc(poll, sector)
+            nc_files_poll_sector_year <- self$map_source$filter_files_by_year(nc_files_poll_sector, years)
+            if (length(nc_files_poll_sector_year) > 0) {
+              nc_files <- c(nc_files, nc_files_poll_sector_year)
             }
           }
-        }
       }
 
       # Files are already filtered by year since we download specific years
@@ -388,6 +379,7 @@ EDGARProvincial <- R6::R6Class(
 
         if (length(parts) >= 6) {
           pollutant <- parts[4]  # NMVOC
+          pollutant <- map_values(pollutant, EDGAR_POLLUTANTS)
           year <- as.numeric(parts[5])  # 1970
           sector <- parts[6]  # RCO
 
@@ -482,30 +474,6 @@ EDGARProvincial <- R6::R6Class(
       return(invisible(list(
         country_files = country_files
       )))
-    },
-
-    #' @description Filter files by year
-    #' @param nc_files List of NetCDF file paths
-    #' @param years Years to include
-    #' @return Filtered list of file paths
-    filter_files_by_year = function(nc_files, years) {
-      # Extract year from filenames and filter
-      filtered_files <- character(0)
-
-      for (file in nc_files) {
-        filename <- basename(file)
-        # Parse EDGAR filename pattern: v8.1_FT2022_AP_NMVOC_1970_RCO_emi.nc
-        parts <- strsplit(filename, "_")[[1]]
-        if (length(parts) >= 5) {
-          file_year <- as.numeric(parts[5])
-          if (file_year %in% years) {
-            filtered_files <- c(filtered_files, file)
-          }
-        }
-      }
-
-      message(glue::glue("Filtered to {length(filtered_files)} files for years {paste(years, collapse=', ')}"))
-      return(filtered_files)
     }
   )
 )

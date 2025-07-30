@@ -93,12 +93,15 @@ emissions <- reactive({
   req(emissions_raw())
 
   e <- emissions_raw()
+
+  # Add region_name if not present
+  if(!"region_name" %in% names(e)){
+    e <- e %>%
+      mutate(region_name = iso3_to_country(iso3))
+  }
+
   e %>%
-    filter(("all" %in% input$country & iso3 != "world") | iso3 %in% input$country) %>%
-    mutate(
-      # sector=clean_sector_name(sector),
-      # fuel=clean_fuel_name(fuel),
-      country=iso3_to_country(iso3))
+    filter(("all" %in% input$country & iso3 != "world") | iso3 %in% input$country)
 })
 
 
@@ -322,6 +325,7 @@ output$selectCountry <- renderUI({
       tibble::deframe()
 
     # Get previously selected country if still available
+    browser()
     prev_selected <- selected_countries()
     if(!is.null(prev_selected) && prev_selected %in% countries) {
       selected <- prev_selected
