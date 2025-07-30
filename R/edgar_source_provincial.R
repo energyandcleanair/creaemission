@@ -1,4 +1,4 @@
-#' @title EDGARSourceProvincial
+#' @title EDGARProvincial
 #' @description R6 class for EDGAR provincial emissions data
 #'
 #' @importFrom R6 R6Class
@@ -8,54 +8,313 @@
 #' @export
 
 # Sector mapping utilities are now in sector_mappings.R
-EDGARSourceProvincial <- R6::R6Class(
-  "EDGARSourceProvincial",
-  inherit = EmissionsSourceProvincial,
+EDGARProvincial <- R6::R6Class(
+  "EDGARProvincial",
+  inherit = SourceProvincial,
 
   public = list(
-    #' @description Create a new EDGARSourceProvincial object
+    #' @field version Data version
+    version = NULL,
+
+    #' @field available_years Available years
+    available_years = NULL,
+
+    #' @field cache_dir Directory for temporary files
+    cache_dir = NULL,
+
+    #' @description Create a new EDGARProvincial object
     #' @param version Data version
     #' @param available_years Available years
+    #' @param data_dir Data directory path
     initialize = function(version = "v8.1",
-                          available_years = 2000:2022) {
-      super$initialize(
-        source_name = "EDGAR",
+                          available_years = 2000:2022,
+                          data_dir = file.path("data", "edgar", "provincial")) {
+      # Create map source
+      map_source <- EDGARMap$new(
         version = version,
         available_years = available_years
       )
+
+      super$initialize(data_dir = data_dir, map_source = map_source)
+      self$version <- version
+      self$available_years <- available_years
+      self$cache_dir <- file.path("cache", "edgar")
+
+      # Create directories if they don't exist
+      for (dir in c(self$data_dir, self$cache_dir)) {
+        if (!dir.exists(dir)) {
+          dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+        }
+      }
     },
 
-    #' @description Get EDGAR sectors mapping
-    get_sectors = function() {
-      sectors <- list(
-        "ENE" = "Power industry",
-        "REF_TRF" = "Oil refineries & Transformation industry",
-        "IND" = "Combustion for manufacturing",
-        "TNR_Aviation_CDS" = "Aviation climbing & descent",
-        "TNR_Aviation_CRS" = "Aviation cruise",
-        "TNR_Aviation_LTO" = "Aviation landing & take-off",
-        "TNR_Aviation_SPS" = "Aviation supersonic",
-        "TRO" = "Road transport",
-        "TNR_Other" = "Railways, pipelines, off-road transport",
-        "TNR_Ship" = "Shipping",
-        "RCO" = "Energy for buildings",
-        "PRO_FFF" = "Fuel exploitation",
-        "NMM" = "Non-metallic minerals production",
-        "CHE" = "Chemical processes",
-        "IRO" = "Iron and steel production",
-        "NFE" = "Non-ferrous metal production",
-        "NEU" = "Non-energy use of fuels",
-        "PRU_SOL" = "Solvents and products use",
-        "FOO_PAP" = "Food and paper",
-        "MNM" = "Manure management",
-        "AWB" = "Agricultural waste burning",
-        "AGS" = "Agricultural soils",
-        "SWD_LDF" = "Solid waste landfills",
-        "SWD_INC" = "Solid waste incineration",
-        "WWT" = "Waste water handling",
-        "TOTALS" = "Total Emissions"
+    #' @description Build provincial emissions data
+    #' @param iso2s ISO2 country codes to process
+    #' @param years Years to process
+    #' @param pollutants Vector of pollutants to process
+    #' @param level Administrative level
+    #' @param res Resolution
+    #' @param buffer_into_sea_km Buffer distance into sea in km
+    #' @return Invisibly returns paths to saved files
+    build = function(iso2s,
+                    years = NULL,
+                    pollutants = c("BC", "CO", "NH3", "NMVOC", "NOX", "OC", "PM10", "PM25", "SO2"),
+                    sectors = names(EDGAR_PROVINCIAL_SECTORS),
+                    level = 1,
+                    res = "low",
+                    buffer_into_sea_km = 20) {
+
+      # Use all available years if years is NULL
+      if (is.null(years)) {
+        years <- self$available_years
+      }
+
+      # Build map data first
+      # self$map_source$build(pollutants = pollutants, years = years)
+
+      # Extract provincial data
+      emissions <- self$extract_provincial_data(
+        iso2s = iso2s,
+        years = years,
+        pollutants = pollutants,
+        level = level,
+        res = res,
+        buffer_into_sea_km = buffer_into_sea_km,
+        sectors = sectors
       )
-      return(sectors)
+
+      # Save provincial data
+      results <- self$save_provincial_data(emissions)
+
+      message("EDGAR provincial data build complete!")
+      return(invisible(results))
+    },
+
+    #' @description List available data combinations
+    #' @param year Optional year filter
+    #' @param sector Optional sector filter
+    #' @param pollutant Optional pollutant filter
+    #' @return Data frame with available pollutant/sector/year/iso3 combinations
+    list_available_data = function(year = NULL, sector = NULL, pollutant = NULL) {
+      if (!dir.exists(self$data_dir)) {
+        return(data.frame(
+          pollutant = character(),
+          sector = character(),
+          year = integer(),
+          iso3 = character(),
+          stringsAsFactors = FALSE
+        ))
+      }
+
+      # Get all RDS files in provincial data directory
+      rds_files <- list.files(self$data_dir, pattern = "\\.rds$", full.names = TRUE)
+
+      if (length(rds_files) == 0) {
+        return(data.frame(
+          pollutant = character(),
+          sector = character(),
+          year = integer(),
+          iso3 = character(),
+          stringsAsFactors = FALSE
+        ))
+      }
+
+      # Read all files and combine data
+      available_data <- list()
+
+      for (file in rds_files) {
+        tryCatch({
+          data <- readRDS(file)
+          if (nrow(data) > 0) {
+            # Extract unique combinations
+            combinations <- data %>%
+              dplyr::distinct(poll, sector, year, iso3) %>%
+              dplyr::rename(pollutant = poll)
+
+            available_data[[length(available_data) + 1]] <- combinations
+          }
+        }, error = function(e) {
+          # Skip files that can't be read
+          warning(glue::glue("Could not read RDS file {file}: {e$message}"))
+        })
+      }
+
+      if (length(available_data) == 0) {
+        return(data.frame(
+          pollutant = character(),
+          sector = character(),
+          year = integer(),
+          iso3 = character(),
+          stringsAsFactors = FALSE
+        ))
+      }
+
+      result <- do.call(rbind, available_data)
+
+      # Apply filters if provided
+      if (!is.null(pollutant)) {
+        result <- result[result$pollutant %in% pollutant, ]
+      }
+
+      if (!is.null(year)) {
+        result <- result[result$year %in% year, ]
+      }
+
+      if (!is.null(sector)) {
+        result <- result[result$sector %in% sector, ]
+      }
+
+      return(result)
+    },
+
+    #' @description Get emissions data
+    #' @param pollutant Pollutant code (can be NULL to get all pollutants)
+    #' @param sector Sector code (can be NULL to get all sectors)
+    #' @param year Year (can be NULL to get all years)
+    #' @param iso3 ISO3 country code (can be NULL to get all countries)
+    #' @return Data frame with emissions data or NULL if not available
+    get = function(pollutant = NULL, sector = NULL, year = NULL, iso3 = NULL) {
+      if (!is.null(iso3)) {
+        target_iso3 <- tolower(iso3)
+        filepath <- file.path(self$data_dir, paste0(target_iso3, ".rds"))
+
+        if (!file.exists(filepath)) {
+          return(NULL)
+        }
+
+        data <- readRDS(filepath)
+
+        # Apply filters only if parameters are not NULL
+        filtered_data <- data
+        if (!is.null(pollutant)) {
+          filtered_data <- filtered_data %>% dplyr::filter(poll == !!pollutant)
+        }
+        if (!is.null(sector)) {
+          filtered_data <- filtered_data %>% dplyr::filter(sector == !!sector)
+        }
+        if (!is.null(year)) {
+          filtered_data <- filtered_data %>% dplyr::filter(year == !!year)
+        }
+
+        if (nrow(filtered_data) > 0) {
+          return(filtered_data)
+        }
+      } else {
+        # Get all country files if no country specified
+        rds_files <- list.files(self$data_dir, pattern = "\\.rds$", full.names = TRUE)
+
+        all_data <- list()
+        for (file in rds_files) {
+          data <- readRDS(file)
+
+          # Apply filters only if parameters are not NULL
+          filtered_data <- data
+          if (!is.null(pollutant)) {
+            filtered_data <- filtered_data %>% dplyr::filter(poll == !!pollutant)
+          }
+          if (!is.null(sector)) {
+            filtered_data <- filtered_data %>% dplyr::filter(sector == !!sector)
+          }
+          if (!is.null(year)) {
+            filtered_data <- filtered_data %>% dplyr::filter(year == !!year)
+          }
+
+          if (nrow(filtered_data) > 0) {
+            all_data[[length(all_data) + 1]] <- filtered_data
+          }
+        }
+
+        if (length(all_data) > 0) {
+          return(dplyr::bind_rows(all_data))
+        }
+      }
+
+      return(NULL)
+    },
+
+    #' @description Clear all built data
+    #' @return Invisibly returns the number of files removed
+    clear = function() {
+      removed_count <- 0
+
+      # Clear provincial data files
+      if (dir.exists(self$data_dir)) {
+        rds_files <- list.files(self$data_dir, pattern = "\\.rds$", full.names = TRUE)
+        for (file in rds_files) {
+          if (file.remove(file)) {
+            removed_count <- removed_count + 1
+          }
+        }
+      }
+
+      # Clear map data
+      if (!is.null(self$map_source)) {
+        self$map_source$clear()
+      }
+
+      message(glue::glue("Cleared {removed_count} EDGAR provincial data files"))
+      return(invisible(removed_count))
+    },
+
+
+    #' @description Extract provincial data from gridded data
+    #' @param iso2s ISO2 country codes
+    #' @param years Years to process
+    #' @param pollutants Vector of pollutants to process
+    #' @param level Administrative level
+    #' @param res Resolution ("low" or "high")
+    #' @param buffer_into_sea_km Buffer distance into sea in km
+    #' @return Data frame with provincial emissions
+    extract_provincial_data = function(iso2s,
+                                      years = NULL,
+                                      pollutants = NULL,
+                                      sectors = NULL,
+                                      level = 1,
+                                      res = "low",
+                                      buffer_into_sea_km = 20) {
+      # Use all available years if years is NULL
+      if (is.null(years)) {
+        years <- self$available_years
+      }
+
+      # Default pollutants if NULL
+      if (is.null(pollutants)) {
+        pollutants <- c("BC", "CO", "NH3", "NMVOC", "NOX", "OC", "PM10", "PM25", "SO2")
+      }
+
+      if (is.null(sectors)) {
+        sectors <- names(EDGAR_PROVINCIAL_SECTORS)
+      }
+
+      # Process each country separately to avoid memory issues
+      emissions <- lapply(iso2s, function(iso2) {
+        iso3 <- countrycode::countrycode(iso2, "iso2c", "iso3c")
+        filepath <- file.path(self$data_dir, paste0(tolower(iso3), ".rds"))
+
+        # Return existing data if available
+        if (file.exists(filepath)) {
+          message(glue::glue("Loading existing provincial data for {iso2}"))
+          return(readRDS(filepath))
+        }
+
+        message(glue::glue("Extracting emissions for {iso2}"))
+
+        # Get province boundaries
+        vect <- self$get_province_boundaries(iso2, level, res, buffer_into_sea_km)
+
+        # Download and prepare gridded data using map source
+        gridded_data <- self$download_gridded_data(years, pollutants, sectors)
+
+        # Extract emissions for each province
+        result <- self$extract_emissions_from_grid(vect, gridded_data, iso2)
+
+        # Save result
+        saveRDS(result, filepath)
+        return(result)
+      }) %>%
+        dplyr::bind_rows()
+
+      return(emissions)
     },
 
     #' @description Download gridded data for provincial analysis
@@ -69,30 +328,32 @@ EDGARSourceProvincial <- R6::R6Class(
       if (is.null(years)) {
         years <- self$available_years
       }
+
       if (is.null(sectors)) {
-        sectors <- names(self$get_sectors())
+        sectors <- names(EDGAR_PROVINCIAL_SECTORS)
       }
+
       dir_netcdf <- file.path(self$cache_dir, "gridded")
       if (!dir.exists(dir_netcdf)) {
         dir.create(dir_netcdf, recursive = TRUE, showWarnings = FALSE)
       }
       nc_files <- list()
 
-      # Download each pollutant/sector combination once
+      # Download each pollutant/sector/year combination
       for (poll in pollutants) {
         for (sector in sectors) {
-          message(glue::glue("Downloading EDGAR gridded data for {poll} {sector}"))
-          nc_files_sector <- self$download_nc(poll, sector, dir_netcdf)
-          if (length(nc_files_sector) > 0) {
-            nc_files <- c(nc_files, nc_files_sector)
+          for (year in years) {
+            message(glue::glue("Downloading EDGAR gridded data for {poll} {sector} in {year}"))
+            nc_files_sector <- self$download_nc(poll, sector, year, dir_netcdf)
+            if (length(nc_files_sector) > 0) {
+              nc_files <- c(nc_files, nc_files_sector)
+            }
           }
         }
       }
 
-      # Filter files by requested years
-      if (length(nc_files) > 0) {
-        nc_files <- self$filter_files_by_year(nc_files, years)
-      }
+      # Files are already filtered by year since we download specific years
+      # No need to filter again
 
       return(list(
         dir_netcdf = dir_netcdf,
@@ -100,181 +361,66 @@ EDGARSourceProvincial <- R6::R6Class(
       ))
     },
 
-    #' @description Download a single netCDF file
-    #' @param pollutant Pollutant to download
-    #' @param sector Sector to download
-    #' @param dir Directory to save the file
-    #' @return Path to downloaded file or NULL if download failed
-    download_nc = function(pollutant, sector, dir) {
-      dir.create(dir, showWarnings = FALSE)
-      edgar_poll <- switch(pollutant,
-                          "NOx" = "NOX",
-                          "BC" = "BC",
-                          "CH4" = "CH4",
-                          "CO" = "CO",
-                          "CO2" = "CO2",
-                          "N2O" = "N2O",
-                          "NH3" = "NH3",
-                          "NMVOC" = "NMVOC",
-                          "OC" = "OC",
-                          "SO2" = "SO2",
-                          pollutant)
-
-      url <- glue::glue("https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/EDGAR/datasets/v81_FT2022_AP_new/{edgar_poll}/{sector}/{sector}_emi_nc.zip")
-      dest_file_zip <- glue::glue("{dir}/{edgar_poll}_{sector}_v{self$version}.zip")
-
-      # Check if we already have extracted .nc files for this pollutant/sector
-      existing_files <- list.files(dir, pattern = glue::glue("{edgar_poll}.*{sector}.*\\.nc$"), full.names = TRUE)
-      if (length(existing_files) > 0) {
-        message(glue::glue("Files already exist for {pollutant} {sector}"))
-        return(existing_files)
-      }
-
-      # Check if zip file exists and is valid
-      if (file.exists(dest_file_zip) && file.info(dest_file_zip)$size > 1e6) {
-        message(glue::glue("Zip file exists for {pollutant} {sector}, extracting..."))
-        tryCatch({
-          unzip(dest_file_zip, exdir = dir)
-          nc_files <- list.files(dir, pattern = glue::glue("{edgar_poll}.*{sector}.*\\.nc$"), full.names = TRUE)
-          if (length(nc_files) > 0) {
-            message(glue::glue("Successfully extracted {length(nc_files)} files for {pollutant} {sector}"))
-            return(nc_files)
-          }
-        }, error = function(e) {
-          message(glue::glue("Error extracting existing zip for {pollutant} {sector}: {e$message}"))
-        })
-      }
-
-      # Download if needed
-      options(timeout = 300)
-      options(download.file.method = "libcurl", url.method = "libcurl")
-
-      tryCatch({
-        download.file(url, dest_file_zip, mode = "wb")
-        unzip(dest_file_zip, exdir = dir)
-
-        # Find all .nc files for this pollutant/sector
-        nc_files <- list.files(dir, pattern = glue::glue("{edgar_poll}.*{sector}.*\\.nc$"), full.names = TRUE)
-
-        if (length(nc_files) > 0) {
-          message(glue::glue("Successfully downloaded and extracted {length(nc_files)} files for {pollutant} {sector}"))
-          return(nc_files)
-        } else {
-          message(glue::glue("Downloaded but no .nc files found for {pollutant} {sector}"))
-          return(character(0))
-        }
-      }, error = function(e) {
-        message(glue::glue("Error downloading {url}: {e$message}"))
-        return(character(0))
-      })
-    },
-
-    filter_files_by_year = function(nc_files, years) {
-      # Extract year from filenames and filter
-      filtered_files <- character(0)
-
-      for (file in nc_files) {
-        filename <- basename(file)
-        # Parse filename like: v8.1_FT2022_AP_NMVOC_2022_ENE_emi.nc
-        parts <- strsplit(filename, "_")[[1]]
-        if (length(parts) >= 5) {
-          file_year <- as.numeric(parts[5])
-          if (file_year %in% years) {
-            filtered_files <- c(filtered_files, file)
-          }
-        }
-      }
-
-      message(glue::glue("Filtered to {length(filtered_files)} files for years {paste(years, collapse=', ')}"))
-      return(filtered_files)
-    },
-
     #' @description Extract emissions from gridded data for provinces
     #' @param vect Province boundaries as Terra vector
     #' @param gridded_data Gridded data information
     #' @param iso2 ISO2 country code
+    #' @param preserve_sector_codes Whether to preserve original sector codes (default: FALSE)
     #' @return Data frame with provincial emissions
     extract_emissions_from_grid = function(vect, gridded_data, iso2, preserve_sector_codes = FALSE) {
-      message("Creating terra stack from all netCDF files...")
-      
+      message("Creating terra stack from all EDGAR netCDF files...")
+
       # 1- Create a single stack from all netCDF files
       stack_list <- list()
       file_metadata <- list()
-      
+
       for (nc_file in gridded_data$nc_files) {
-        # Extract pollutant and year from filename
+        # Extract pollutant, year, and sector from filename
         filename <- basename(nc_file)
-        # Parse filename like: v8.1_FT2022_AP_NMVOC_2022_ENE_emi.nc
+        # Parse EDGAR filename pattern: v8.1_FT2022_AP_NMVOC_1970_RCO_emi.nc
         parts <- strsplit(filename, "_")[[1]]
-        pollutant <- parts[4]  # NMVOC
-        year <- as.numeric(parts[5])  # 2022
 
-        # Extract sector from filename
-        base_name <- str_replace(filename, "_emi\\.nc$", "")
-        parts <- strsplit(base_name, "_")[[1]]
-        year_pos <- which(parts == as.character(year))
-        if (length(year_pos) > 0 && year_pos < length(parts)) {
-          sector_code <- paste(parts[(year_pos + 1):length(parts)], collapse = "_")
-        } else {
-          sector_code <- parts[6]
-        }
+        if (length(parts) >= 6) {
+          pollutant <- parts[4]  # NMVOC
+          year <- as.numeric(parts[5])  # 1970
+          sector <- parts[6]  # RCO
 
-        # Read netCDF file
-        nc <- ncdf4::nc_open(nc_file)
-        r <- terra::rast(nc_file)
-        
-        # Check units and apply conversion
-        units <- terra::units(r)
-        message(glue::glue("Processing {filename}: {units[1]}"))
-        
-        if (all(units == "kg m-2 s-1")) {
-          # Convert from kg/m2/s to kg/s
-          area_r_m2 <- terra::cellSize(r, unit="m")
-          r_kg_s <- r * area_r_m2
-          conversion_factor <- 365 * 24 * 3600 / 1e6
-        } else if (all(units == "Tonnes")) {
-          # EDGAR files are already in tonnes, just need to convert to kt/year
-          r_kg_s <- r
-          conversion_factor <- 1 / 1e3  # tonnes to kt
-        } else {
-          warning(glue::glue("Unexpected units for {filename}: {units[1]}"))
-          r_kg_s <- r
-          conversion_factor <- 1
-        }
-        
-        # Set meaningful layer names for the stack
-        layer_names <- paste0(pollutant, "_", sector_code, "_", year)
-        names(r_kg_s) <- layer_names
-        
-        # Store metadata for each layer
-        for (i in seq_along(layer_names)) {
-          file_metadata[[layer_names[i]]] <- list(
+          # Read netCDF file
+          r_tonnes <- terra::rast(nc_file)
+
+          # Create meaningful layer name
+          layer_name <- paste0(pollutant, "_", sector, "_", year)
+
+          # Store metadata
+          file_metadata[[layer_name]] <- list(
             pollutant = pollutant,
-            sector = sector_code,
+            sector = sector,
             year = year,
-            conversion_factor = conversion_factor,
             filename = filename
           )
+
+          # Set layer name
+          names(r_tonnes) <- layer_name
+          stack_list[[length(stack_list) + 1]] <- r_tonnes
+        } else {
+          message(glue::glue("Skipping {filename}: unexpected filename format"))
         }
-        
-        stack_list[[length(stack_list) + 1]] <- r_kg_s
-        ncdf4::nc_close(nc)
       }
-      
+
       # Combine all rasters into a single stack
       if (length(stack_list) == 0) {
-        stop("No valid netCDF files found")
+        stop("No valid EDGAR netCDF files found")
       }
-      
+
       message(glue::glue("Creating stack from {length(stack_list)} files..."))
       combined_stack <- terra::rast(stack_list)
-      
+
       # 2- Extract data once from the combined stack
-      message("Extracting zonal statistics from combined stack...")
-      zonal_results <- terra::extract(combined_stack, terra::makeValid(vect), fun="sum", ID=TRUE, exact=TRUE)
-      
+      message("Extracting zonal statistics from combined EDGAR stack...")
+      zonal_results <- terra::extract(combined_stack, terra::makeValid(vect), fun=sum, ID=TRUE, exact=TRUE, weights=TRUE)
+
       # 3- Process results
-      message("Processing extraction results...")
+      message("Processing EDGAR extraction results...")
       emissions <- as_tibble(zonal_results, .name_repair="minimal") %>%
         pivot_longer(cols = -c("ID"),
                      names_to = "layer_name",
@@ -283,15 +429,13 @@ EDGARSourceProvincial <- R6::R6Class(
           # Extract metadata from layer names
           pollutant = sapply(layer_name, function(x) file_metadata[[x]]$pollutant),
           sector = sapply(layer_name, function(x) file_metadata[[x]]$sector),
-          year = sapply(layer_name, function(x) file_metadata[[x]]$year),
-          conversion_factor = sapply(layer_name, function(x) file_metadata[[x]]$conversion_factor)
+          year = sapply(layer_name, function(x) file_metadata[[x]]$year)
         ) %>%
-        # Apply conversion factors
         mutate(
-          value = value * conversion_factor,
+          value = value / 1e3,  # Convert t to kt
           unit = "kt/year"
         ) %>%
-        dplyr::select(-layer_name, -conversion_factor)
+        dplyr::select(-layer_name)
 
       # 4- Add region information
       level <- 1
@@ -308,383 +452,81 @@ EDGARSourceProvincial <- R6::R6Class(
           iso3 = tolower(GID_0),
           region_id = GID_1,
           region_name = NAME_1,
-          region_level = level,
-          # Add translated sector name for display
-          sector_name = sapply(sector, function(s) get_sector_name(s, "EDGAR", "provincial"))
+          region_level = level
         ) %>%
-        dplyr::select(iso3, region_id, region_name, region_level, poll = pollutant, year, unit, value, sector, sector_name)
+        dplyr::select(iso3, region_id, region_name, region_level, poll = pollutant, sector, year, unit, value)
 
-      message(glue::glue("Extraction complete. Processed {nrow(emissions)} records from {length(stack_list)} files."))
+      message(glue::glue("EDGAR extraction complete. Processed {nrow(emissions)} records from {length(stack_list)} files."))
       return(emissions)
     },
 
-    #' @description Get available maps for EDGAR provincial data
-    #' @return Data frame with available map combinations
-    available_maps = function() {
-      # Scan existing map files (TIFF) in maps directory
-      maps_dir <- file.path(self$data_dir, "maps")
-      
-      if (!dir.exists(maps_dir)) {
-        return(data.frame(
-          iso2 = character(), 
-          pollutant = character(), 
-          sector = character(), 
-          year = integer(),
-          stringsAsFactors = FALSE
-        ))
-      }
-      
-      # Get all TIF files in maps directory
-      tif_files <- list.files(maps_dir, pattern = "\\.tif$", full.names = FALSE)
-      
-      if (length(tif_files) == 0) {
-        return(data.frame(
-          iso2 = character(), 
-          pollutant = character(), 
-          sector = character(), 
-          year = integer(),
-          stringsAsFactors = FALSE
-        ))
-      }
-      
-      # Parse filenames to extract metadata
-      # Expected format: pollutant_sector_year_iso3.tif
-      available_data <- list()
-      
-      for (filename in tif_files) {
-        # Remove .tif extension
-        name_without_ext <- gsub("\\.tif$", "", filename)
-        
-        # Split by underscore
-        parts <- strsplit(name_without_ext, "_")[[1]]
-        
-        if (length(parts) >= 4) {
-          pollutant <- parts[1]
-          sector <- parts[2]
-          year <- as.integer(parts[3])
-          iso3 <- parts[4]
-          iso2 <- countrycode::countrycode(iso3, "iso3c", "iso2c")
-          
-          if (!is.na(iso2)) {
-            available_data[[length(available_data) + 1]] <- data.frame(
-              iso2 = iso2,
-              pollutant = pollutant,
-              sector = sector,
-              year = year,
-              stringsAsFactors = FALSE
-            )
-          }
-        }
-      }
-      
-      if (length(available_data) == 0) {
-        return(data.frame(
-          iso2 = character(), 
-          pollutant = character(), 
-          sector = character(), 
-          year = integer(),
-          stringsAsFactors = FALSE
-        ))
-      }
-      
-      result <- do.call(rbind, available_data)
-      return(result)
+    #' @description Save provincial data
+    #' @param data Provincial emissions data
+    #' @return Invisibly returns paths to saved files
+    save_provincial_data = function(data) {
+      # Save by country
+      country_files <- split(data, data$iso3) %>%
+        purrr::map(function(country_data) {
+          iso3 <- tolower(country_data$iso3[1])
+          file_path <- file.path(self$data_dir, paste0(iso3, ".rds"))
+          saveRDS(country_data, file_path)
+          return(file_path)
+        })
+
+      return(invisible(list(
+        country_files = country_files
+      )))
     },
 
-    #' @description Get a map raster for specific parameters
+    #' @description Download NetCDF file for a specific pollutant, sector, and year
     #' @param pollutant Pollutant code
     #' @param sector Sector code
     #' @param year Year
-    #' @param iso2 ISO2 country code
-    #' @param save Whether to save the map file
-    #' @return Terra raster object or file path if saved
-    get_map = function(pollutant,
-                      sector,
-                      year,
-                      iso2,
-                      save = FALSE) {
-      iso3 <- countrycode::countrycode(iso2, "iso2c", "iso3c")
-      
-      # Check if map file already exists
-      maps_dir <- file.path(self$data_dir, "maps")
-      filename <- paste0(tolower(pollutant), "_", tolower(sector), "_", year, "_", tolower(iso3), ".tif")
-      filepath <- file.path(maps_dir, filename)
-      
-      if (file.exists(filepath)) {
-        # Load existing map file
-        if (save) {
-          return(filepath)
-        } else {
-          return(terra::rast(filepath))
+    #' @param dir Directory to save the file
+    #' @return List of downloaded file paths
+    download_nc = function(pollutant, sector, year, dir) {
+      # Use map source to download NetCDF files
+      # For EDGAR, we need to download per pollutant/sector/year combination
+      nc_files <- self$map_source$download_nc(pollutant, sector, year)
+
+      if (length(nc_files) > 0) {
+        # Copy from cache to requested directory
+        copied_files <- list()
+        for (nc_file in nc_files) {
+          if (!is.null(nc_file) && file.exists(nc_file)) {
+            dest_file <- file.path(dir, basename(nc_file))
+            file.copy(nc_file, dest_file, overwrite = TRUE)
+            copied_files <- c(copied_files, dest_file)
+          }
         }
-      } else {
-        # No map file exists, return NULL
-        return(NULL)
+        return(copied_files)
       }
+
+      return(list())
     },
 
-    #' @description Clear all map files for this source
-    #' @return Invisibly returns the number of files removed
-    clear_maps = function() {
-      maps_dir <- file.path(self$data_dir, "maps")
-      if (!dir.exists(maps_dir)) {
-        message("No maps directory found")
-        return(invisible(0))
-      }
-      
-      # Get all TIF files in maps directory
-      tif_files <- list.files(maps_dir, pattern = "\\.tif$", full.names = TRUE)
-      
-      if (length(tif_files) == 0) {
-        message("No map files found to clear")
-        return(invisible(0))
-      }
-      
-      # Remove all TIF files
-      removed_count <- 0
-      for (file in tif_files) {
-        if (file.remove(file)) {
-          removed_count <- removed_count + 1
-        }
-      }
-      
-      message(glue::glue("Cleared {removed_count} map files"))
-      return(invisible(removed_count))
-    },
+    #' @description Filter files by year
+    #' @param nc_files List of NetCDF file paths
+    #' @param years Years to include
+    #' @return Filtered list of file paths
+    filter_files_by_year = function(nc_files, years) {
+      # Extract year from filenames and filter
+      filtered_files <- character(0)
 
-    #' @description Get available NetCDF data combinations for EDGAR
-    #' @return Data frame with available NetCDF data combinations
-    get_available_provincial_data = function() {
-      # Scan existing NetCDF files
-      available_data <- list()
-      
-      # Get all NC files in gridded data directory
-      nc_dir <- file.path(self$data_dir, "gridded")
-      if (!dir.exists(nc_dir)) {
-        return(data.frame(
-          iso2 = character(), 
-          pollutant = character(), 
-          sector = character(), 
-          year = integer(),
-          stringsAsFactors = FALSE
-        ))
-      }
-      
-      nc_files <- list.files(nc_dir, pattern = "\\.nc$", full.names = TRUE)
-      
       for (file in nc_files) {
-        # Extract pollutant and year from filename
         filename <- basename(file)
-        
-        # Parse filename to extract pollutant and year
-        # Assuming filename format: pollutant_year.nc or similar
-        parts <- strsplit(filename, "_|\\.")[[1]]
-        
-        if (length(parts) >= 2) {
-          pollutant <- parts[1]
-          year <- as.integer(parts[2])
-          
-          if (!is.na(year)) {
-            # Get available sectors from the NetCDF file
-            tryCatch({
-              nc_stack <- terra::rast(file)
-              sector_names <- names(nc_stack)
-              
-              # Map NetCDF layer names back to sector names for EDGAR
-              sector_mapping <- c(
-                "energy" = "Energy",
-                "industry" = "Industry",
-                "transport" = "Transport",
-                "residential" = "Residential and other sectors",
-                "agriculture" = "Agriculture",
-                "waste" = "Waste",
-                "shipping" = "International shipping",
-                "aviation" = "International aviation"
-              )
-              
-              for (layer_name in sector_names) {
-                sector_name <- sector_mapping[layer_name]
-                if (is.na(sector_name)) {
-                  sector_name <- layer_name  # Use layer name as fallback
-                }
-                
-                # Add all supported countries plus global
-                supported_countries <- c("CN", "ID", "IN", "TH", "VN", "ZA", "wld")
-                
-                for (iso2 in supported_countries) {
-                  available_data[[length(available_data) + 1]] <- data.frame(
-                    iso2 = iso2,
-                    pollutant = pollutant,
-                    sector = sector_name,
-                    year = year,
-                    stringsAsFactors = FALSE
-                  )
-                }
-              }
-            }, error = function(e) {
-              # Skip files that can't be read
-              warning(glue::glue("Could not read NetCDF file {file}: {e$message}"))
-            })
+        # Parse EDGAR filename pattern: v8.1_FT2022_AP_NMVOC_1970_RCO_emi.nc
+        parts <- strsplit(filename, "_")[[1]]
+        if (length(parts) >= 5) {
+          file_year <- as.numeric(parts[5])
+          if (file_year %in% years) {
+            filtered_files <- c(filtered_files, file)
           }
         }
       }
-      
-      if (length(available_data) == 0) {
-        return(data.frame(
-          iso2 = character(), 
-          pollutant = character(), 
-          sector = character(), 
-          year = integer(),
-          stringsAsFactors = FALSE
-        ))
-      }
-      
-      result <- do.call(rbind, available_data)
-      return(result)
-    },
 
-    #' @description Generate a map raster from EDGAR NetCDF data
-    #' @param pollutant Pollutant code
-    #' @param sector Sector code
-    #' @param year Year
-    #' @param iso2 ISO2 country code (use "wld" for global)
-    #' @param save Whether to save the map file
-    #' @return Terra raster object or file path if saved
-    generate_map = function(pollutant,
-                           sector,
-                           year,
-                           iso2,
-                           save = FALSE) {
-      
-      # Handle global version
-      if (iso2 == "wld") {
-        iso3 <- "wld"
-      } else {
-        # Convert ISO2 to ISO3
-        iso3 <- countrycode::countrycode(iso2, "iso2c", "iso3c")
-      }
-      
-      # Get the NetCDF file for this pollutant and year
-      nc_file <- self$get_nc_file(pollutant, year)
-      if (is.null(nc_file) || !file.exists(nc_file)) {
-        warning(glue::glue("No NetCDF file found for {pollutant} {year}"))
-        return(NULL)
-      }
-      
-      # Load the NetCDF file
-      nc_stack <- terra::rast(nc_file)
-      
-      # Get the layer for the specific sector
-      sector_layer <- self$get_sector_layer_name(sector)
-      if (!sector_layer %in% names(nc_stack)) {
-        warning(glue::glue("Sector layer '{sector_layer}' not found in NetCDF file"))
-        return(NULL)
-      }
-      
-      # Extract the sector layer
-      sector_raster <- nc_stack[[sector_layer]]
-      
-      # Convert units from kg/s to kg/m²/s (assuming the data is in kg/s)
-      # This depends on the actual units in your NetCDF files
-      # You may need to adjust this conversion based on your data
-      sector_raster <- sector_raster / terra::cellSize(sector_raster, unit = "m")
-      
-      if (iso2 == "wld") {
-        # Global version - no cropping
-        masked_raster <- sector_raster
-      } else {
-        # Get country boundaries for cropping
-        country_boundaries <- self$get_country_boundaries(iso2)
-        if (is.null(country_boundaries)) {
-          warning(glue::glue("No country boundaries found for {iso2}"))
-          return(NULL)
-        }
-        
-        # Crop to country boundaries
-        cropped_raster <- terra::crop(sector_raster, country_boundaries)
-        masked_raster <- terra::mask(cropped_raster, country_boundaries)
-      }
-      
-      # Set layer name
-      names(masked_raster) <- paste(pollutant, sector, year, iso2, sep = "_")
-      
-      if (save) {
-        # Create maps directory
-        maps_dir <- file.path(self$data_dir, "maps")
-        if (!dir.exists(maps_dir)) {
-          dir.create(maps_dir, recursive = TRUE, showWarnings = FALSE)
-        }
-        
-        # Save as GeoTIFF
-        filename <- paste0(tolower(pollutant), "_", tolower(sector), "_", year, "_", tolower(iso3), ".tif")
-        filepath <- file.path(maps_dir, filename)
-        
-        terra::writeRaster(masked_raster, filepath, overwrite = TRUE)
-        return(filepath)
-      }
-      
-      return(masked_raster)
-    },
-
-    #' @description Get NetCDF file path for a pollutant and year
-    #' @param pollutant Pollutant code
-    #' @param year Year
-    #' @return Path to NetCDF file or NULL if not found
-    get_nc_file = function(pollutant, year) {
-      # Look for NetCDF files in the gridded data directory
-      nc_dir <- file.path(self$data_dir, "gridded")
-      if (!dir.exists(nc_dir)) {
-        return(NULL)
-      }
-      
-      # Search for files matching the pattern
-      pattern <- paste0(tolower(pollutant), ".*", year, ".*\\.nc$")
-      nc_files <- list.files(nc_dir, pattern = pattern, full.names = TRUE)
-      
-      if (length(nc_files) == 0) {
-        return(NULL)
-      }
-      
-      return(nc_files[1])  # Return the first match
-    },
-
-    #' @description Get sector layer name for NetCDF files
-    #' @param sector Sector name
-    #' @return Layer name in NetCDF file
-    get_sector_layer_name = function(sector) {
-      # Map sector names to NetCDF layer names for EDGAR
-      # This mapping depends on your NetCDF file structure
-      sector_mapping <- c(
-        "Energy" = "energy",
-        "Industry" = "industry",
-        "Transport" = "transport",
-        "Residential and other sectors" = "residential",
-        "Agriculture" = "agriculture",
-        "Waste" = "waste",
-        "International shipping" = "shipping",
-        "International aviation" = "aviation"
-      )
-      
-      if (sector %in% names(sector_mapping)) {
-        return(sector_mapping[sector])
-      }
-      
-      # If not found, try lowercase version
-      return(tolower(gsub(" ", "_", sector)))
-    },
-
-    #' @description Get country boundaries for cropping
-    #' @param iso2 ISO2 country code
-    #' @return Terra vector object or NULL if not found
-    get_country_boundaries = function(iso2) {
-      tryCatch({
-        # Use creahelpers to get country boundaries
-        boundaries <- terra::vect(creahelpers::get_adm(level = 0, res = "low", iso2s = iso2))
-        return(boundaries)
-      }, error = function(e) {
-        warning(glue::glue("Could not get boundaries for {iso2}: {e$message}"))
-        return(NULL)
-      })
+      message(glue::glue("Filtered to {length(filtered_files)} files for years {paste(years, collapse=', ')}"))
+      return(filtered_files)
     }
   )
 )

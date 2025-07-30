@@ -175,3 +175,49 @@ get_catalog_pollutants <- function(source, type = REGIONTYPE_NATIONAL, catalog =
     pull(poll)
 }
 
+#' Build maps for the emissions catalog
+#' @param sources Vector of sources to build maps for
+#' @param sectors Vector of sectors to build maps for (NULL for all)
+#' @param pollutants Vector of pollutants to build maps for (NULL for all)
+#' @param years Vector of years to build maps for (NULL for all available)
+#' @param iso2s Vector of ISO2 country codes to build maps for (NULL for all available)
+#' @return Invisibly returns paths to saved map files
+#' @export
+build_emissions_maps <- function(sources = SOURCES,
+                                sectors = NULL,
+                                pollutants = NULL,
+                                years = NULL,
+                                iso2s = NULL) {
+  
+  built_files <- list()
+  
+  for (source in sources) {
+    message(glue::glue("Building maps for {source}..."))
+    
+    # Create appropriate source object
+    if (source == "CEDS") {
+      source_obj <- CEDSSourceProvincial$new()
+    } else if (source == "EDGAR") {
+      source_obj <- EDGARSourceProvincial$new()
+    } else {
+      warning(glue::glue("Unsupported source: {source}"))
+      next
+    }
+    
+    # Build maps for this source
+    source_files <- source_obj$build_maps(
+      sectors = sectors,
+      pollutants = pollutants,
+      years = years,
+      iso2s = iso2s
+    )
+    
+    if (!is.null(source_files)) {
+      built_files[[source]] <- source_files
+    }
+  }
+  
+  message(glue::glue("Built maps for {length(built_files)} sources"))
+  return(invisible(built_files))
+}
+
