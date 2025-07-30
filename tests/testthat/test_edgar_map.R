@@ -46,6 +46,7 @@ test_that("EDGAR map source works correctly", {
 
 
   # Test that list_available_data returns empty when no data
+  edgar_map$clear()
   available_data <- edgar_map$list_available_data()
   expect_equal(nrow(available_data), 0)
 })

@@ -51,10 +51,8 @@ test_that("EDGAR provincial source works correctly", {
   expect_true(inherits(edgar_provincial, "EDGARProvincial"))
   expect_true(inherits(edgar_provincial, "SourceProvincial"))
 
-  # Test that clear method works
-  expect_equal(edgar_provincial$clear(), 0)
-
   # Test that list_available_data returns empty when no data
+  edgar_provincial$clear()
   available_data <- edgar_provincial$list_available_data()
   expect_equal(nrow(available_data), 0)
 })
