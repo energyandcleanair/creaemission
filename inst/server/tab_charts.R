@@ -30,6 +30,9 @@ emissions_raw <- reactive({
   req(input$source)
   topn <- input$topn
 
+  # Get current source object
+  current_source <- get_current_source(input$source, input$region_type)
+
   # Years
   single_year_charts <- c("barh")
   multiple_year_charts <- c("area")
@@ -43,31 +46,42 @@ emissions_raw <- reactive({
     years <- NULL
   }
 
-
   # Adjust isos
   iso3s <- input$country
   if(!is.null(iso3s) & ("all" %in% iso3s)){
-    # Get latest year from catalog
-    latest_year <- get_latest_year(source=input$source, region_type=input$region_type)
+    # Get latest year from available data
+    available_data <- current_source$list_available_data()
+    latest_year <- max(available_data$year)
 
-    # Return topn countries
-    iso3s_top_n <- get_emissions_national_by_year(year=latest_year, source=input$source) %>%
-      group_by(iso3) %>%
-      summarise(value=sum(value, na.rm=T)) %>%
-      arrange(desc(value)) %>%
-      head(topn) %>%
-      pull(iso3)
+    # Get top N countries for the latest year
+    latest_data <- current_source$get(year = latest_year)
+    if (!is.null(latest_data) && nrow(latest_data) > 0) {
+      iso3s_top_n <- latest_data %>%
+        group_by(iso3) %>%
+        summarise(value = sum(value, na.rm = TRUE)) %>%
+        arrange(desc(value)) %>%
+        head(topn) %>%
+        pull(iso3)
 
-    # Remove all and replace with topn
-    iso3s <- iso3s[iso3s!="all"]
-    iso3s <- c(iso3s_top_n, iso3s)
-    iso3s <- unique(iso3s)
+      # Remove all and replace with topn
+      iso3s <- iso3s[iso3s != "all"]
+      iso3s <- c(iso3s_top_n, iso3s)
+      iso3s <- unique(iso3s)
+    }
   }
 
+  # Get emissions data from source
+  emissions_data <- current_source$get(
+    year = years,
+    iso3 = iso3s
+  )
 
+  # Return NULL if no data available
+  if (is.null(emissions_data) || nrow(emissions_data) == 0) {
+    return(NULL)
+  }
 
-  get_emissions(region_type=input$region_type, iso3s=iso3s, years=years, source=input$source)
-
+  return(emissions_data)
 })
 
 
@@ -106,6 +120,18 @@ output$plot <- renderPlotly({
   req(chart_type)
 
   e <- emissions()
+  
+  # Check if we have data
+  if (is.null(e) || nrow(e) == 0) {
+    # Create an empty plot with a message
+    empty_plot <- ggplot() +
+      annotate("text", x = 0.5, y = 0.5, label = "No data available for the selected parameters", 
+               size = 6, color = "gray50") +
+      theme_void() +
+      theme(plot.background = element_rect(fill = "white"))
+    
+    return(ggplotly(empty_plot))
+  }
 
   # Assert that all units start with kt or Gg
   if(!all(grepl("^kt|Gg", e$units))){
@@ -219,11 +245,15 @@ output$selectYear <- renderUI({
   req(input$source)
   req(input$country)
 
-  years <- get_catalog_years(source=input$source, type=input$region_type)
+  # Get current source object
+  current_source <- get_current_source(input$source, input$region_type)
+  
+  # Get available years from actual data
+  available_data <- current_source$list_available_data()
+  years <- sort(unique(available_data$year))
 
   if(input$chart_type == 'barh'){
-    latest_year <- get_latest_year(source=input$source,
-                                  region_type=input$region_type)
+    latest_year <- max(years)
     
     # Get previously selected year if it's still available
     prev_selected <- selected_year()
@@ -249,12 +279,16 @@ output$selectCountry <- renderUI({
   req(input$region_type)
   req(input$source)
 
+  # Get current source object
+  current_source <- get_current_source(input$source, input$region_type)
+  
   multiple = (input$region_type==REGIONTYPE_NATIONAL)
 
   if(input$region_type==REGIONTYPE_NATIONAL){
-    # Get countries from catalog
-    countries <- get_catalog_countries(source=input$source, type=input$region_type) %>%
-      tibble(iso3 = .) %>%
+    # Get countries from source
+    available_data <- current_source$list_available_data()
+    countries <- available_data %>%
+      distinct(iso3) %>%
       mutate(country = iso3_to_country(iso3)) %>%
       filter(iso3!="world", !is.na(country)) %>%
       arrange(country) %>%
@@ -279,9 +313,10 @@ output$selectCountry <- renderUI({
 
     selectInput('country', 'Country', choices = countries, multiple=multiple, selected=selected)
   } else {
-    # Get provincial countries from catalog
-    countries <- get_catalog_countries(source=input$source, type=input$region_type) %>%
-      tibble(iso3 = .) %>%
+    # Get provincial countries from source
+    available_data <- current_source$list_available_data()
+    countries <- available_data %>%
+      distinct(iso3) %>%
       mutate(country = iso3_to_country(iso3)) %>%
       distinct(country, iso3) %>%
       tibble::deframe()

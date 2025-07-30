@@ -71,6 +71,7 @@ EDGARNational <- R6::R6Class(
           pollutant = character(),
           sector = character(),
           year = integer(),
+          iso3 = character(),
           stringsAsFactors = FALSE
         ))
       }
@@ -83,6 +84,7 @@ EDGARNational <- R6::R6Class(
           pollutant = character(),
           sector = character(),
           year = integer(),
+          iso3 = character(),
           stringsAsFactors = FALSE
         ))
       }
@@ -96,7 +98,7 @@ EDGARNational <- R6::R6Class(
           if (nrow(data) > 0) {
             # Extract unique combinations
             combinations <- data %>%
-              dplyr::distinct(poll, sector, year) %>%
+              dplyr::distinct(poll, sector, year, iso3) %>%
               dplyr::rename(pollutant = poll)
             
             available_data[[length(available_data) + 1]] <- combinations
@@ -112,6 +114,7 @@ EDGARNational <- R6::R6Class(
           pollutant = character(),
           sector = character(),
           year = integer(),
+          iso3 = character(),
           stringsAsFactors = FALSE
         ))
       }
