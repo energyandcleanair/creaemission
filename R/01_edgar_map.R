@@ -138,7 +138,7 @@ EDGARMap <- R6::R6Class(
                 for (sector_name in sector_names) {
                   available_data[[length(available_data) + 1]] <- data.frame(
                     pollutant = pollutant,
-                    sector = sector_name,
+                    sector = map_values(sector_name, EDGAR_PROVINCIAL_SECTORS),
                     year = year_from_file,
                     stringsAsFactors = FALSE
                   )
@@ -189,7 +189,7 @@ EDGARMap <- R6::R6Class(
 
       # Look for processed NetCDF file with new naming pattern
       # Pattern: pollutant_year_vversion.nc
-      nc_file <- file.path(self$data_dir, paste0(edgar_poll, "_", year, "_v", self$version, ".nc"))
+      nc_file <- file.path(self$data_dir, paste0(pollutant, "_", year, "_v", self$version, ".nc"))
 
       if (!file.exists(nc_file)) {
         return(NULL)
@@ -199,8 +199,11 @@ EDGARMap <- R6::R6Class(
       nc_stack <- terra::rast(nc_file)
 
       # Get the sector layer (processed files now have sector layers)
-      if (sector %in% names(nc_stack)) {
-        sector_raster <- nc_stack[[sector]]
+      # Convert sector code back to sector name for NetCDF lookup
+      sector_id <- map_values(sector, setNames(names(EDGAR_PROVINCIAL_SECTORS), unname(EDGAR_PROVINCIAL_SECTORS)))
+
+      if (sector_id %in% names(nc_stack)) {
+        sector_raster <- nc_stack[[sector_id]]
       } else {
         return(NULL)
       }
