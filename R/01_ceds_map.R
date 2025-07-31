@@ -28,7 +28,7 @@ CEDSMap <- R6::R6Class(
       if (is.null(data_dir)) {
         data_dir <- get_data_path(c("ceds", "maps"))
       }
-      
+
       super$initialize(data_dir = data_dir)
       self$version <- version
       self$available_years <- available_years
@@ -301,7 +301,7 @@ CEDSMap <- R6::R6Class(
             filename <- basename(nc_file)
             dest_file <- file.path(self$data_dir, filename)
 
-            terra::writeCDF(processed_stack, dest_file, overwrite = TRUE, split=TRUE)
+            terra::writeCDF(processed_stack, dest_file, overwrite = TRUE, split=TRUE, compress=9)
             processed_files[[length(processed_files) + 1]] <- dest_file
 
             message(glue::glue("Processed and saved: {filename}"))

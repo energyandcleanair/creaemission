@@ -430,7 +430,7 @@ EDGARMap <- R6::R6Class(
           dest_file <- file.path(self$data_dir, processed_filename)
 
           # Save the processed raster stack with units
-          terra::writeCDF(processed_stack, dest_file, overwrite = TRUE, split = TRUE)
+          terra::writeCDF(processed_stack, dest_file, overwrite = TRUE, split = TRUE, compress=9)
           processed_files[[length(processed_files) + 1]] <- dest_file
 
           message(glue::glue("Processed and saved combined file: {processed_filename}"))
