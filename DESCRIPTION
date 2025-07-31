@@ -1,10 +1,10 @@
 Package: creaemission
 Type: Package
-Title: Emission Dashboard - Emissions Data Analysis and Visualization
+Title: CREA Emission Portal - Emissions Data Analysis and Visualization
 Version: 1.0.0
 Authors@R: 
     person("CREA", "Hubert Thieriot", email = "hubert@energyandcleanair.org", role = c("aut", "cre"))
-Description: A R package and Shiny dashboard for analyzing and visualizing emissions data from CEDS and EDGAR sources, with support for both national and provincial-level analysis.
+Description: A comprehensive R package and Shiny portal for analyzing and visualizing emissions data from multiple sources (CEDS, EDGAR), with support for both national and provincial-level analysis, interactive charts, and mapping capabilities.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true

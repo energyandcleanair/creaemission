@@ -1,6 +1,6 @@
 # Testing Framework
 
-This directory contains the test suite for the CEDS Dashboard package using the `testthat` framework.
+This directory contains the test suite for the CREA Emission Portal package using the `testthat` framework.
 
 ## Test Structure
 

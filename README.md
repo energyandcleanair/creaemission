@@ -1,17 +1,18 @@
-# CEDS Dashboard
+# CREA Emission Portal
 
-A Shiny application for exploring emissions data from CEDS and EDGAR sources.
+A comprehensive Shiny portal for exploring emissions data from multiple sources including CEDS and EDGAR.
 
 ## Features
 
-- **Charts**: Interactive charts for national and provincial emissions data
-- **Maps**: Interactive maps showing provincial emissions data
-- **Multiple Sources**: Support for both CEDS and EDGAR data sources
-- **Provincial Data**: Detailed provincial-level emissions analysis
+- **Interactive Charts**: Dynamic charts for national and provincial emissions data
+- **Interactive Maps**: Comprehensive mapping capabilities for provincial emissions data
+- **Multiple Data Sources**: Support for CEDS, EDGAR, and other emissions databases
+- **Provincial Analysis**: Detailed provincial-level emissions analysis and visualization
+- **Dynamic Data**: Real-time pollutant availability based on actual data sources
 
 ## Map Functionality
 
-The dashboard now includes comprehensive map functionality for visualizing provincial emissions data:
+The portal now includes comprehensive map functionality for visualizing provincial emissions data:
 
 ### Provincial Source Classes
 
@@ -79,13 +80,14 @@ remotes::install_github("energyandcleanair/rcrea")
 
 ## Data Sources
 
-- **CEDS**: Community Emissions Data System
-- **EDGAR**: Emissions Database for Global Atmospheric Research
+- **CEDS**: Community Emissions Data System - Comprehensive emissions inventory
+- **EDGAR**: Emissions Database for Global Atmospheric Research - Global atmospheric emissions
+- **Future Sources**: Extensible architecture for additional emissions databases
 
 ## Usage
 
 ```r
-# Run the dashboard
+# Run the portal
 shiny::runApp()
 
 # Build data

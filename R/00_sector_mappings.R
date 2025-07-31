@@ -98,7 +98,7 @@ EDGAR_NATIONAL_SECTORS <- c(
 
 # EDGAR_POLLUTANTS = c("BC", "CO", "NH3", "NMVOC", "NOX", "OC", "PM10", "PM2.5", "SO2"),
 EDGAR_POLLUTANTS = c(
-  "NOX"="NOx",
+  "NOx"="NOx",
   "SO2"="SO2",
   "PM2.5" = "PM2.5"
   )

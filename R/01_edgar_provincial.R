@@ -62,8 +62,7 @@ EDGARProvincial <- R6::R6Class(
     #' @param res Resolution
     #' @param buffer_into_sea_km Buffer distance into sea in km
     #' @return Invisibly returns paths to saved files
-    build = function(iso2s,
-                    years = NULL,
+    build = function(years = NULL,
                     pollutants = EDGAR_POLLUTANTS,
                     sectors = names(EDGAR_PROVINCIAL_SECTORS),
                     level = 1,
@@ -278,7 +277,7 @@ EDGARProvincial <- R6::R6Class(
                                       level = 1,
                                       res = "low",
                                       buffer_into_sea_km = 20) {
-                                        
+
       # Use all available years if years is NULL
       if (is.null(years)) {
         years <- self$available_years

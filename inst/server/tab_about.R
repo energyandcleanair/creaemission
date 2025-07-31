@@ -1,7 +1,7 @@
 output$about <- renderUI({
   HTML("
   <div class='about-content'>
-   The data presented in this dashboard is based on multiple emission inventory datasets.
+   The data presented in this portal is based on multiple emission inventory datasets.
    
    <h2>Data Sources</h2>
    
@@ -30,7 +30,7 @@ output$about <- renderUI({
    </ul>
    
    <h3>Data Sources</h3>
-   <p>This dashboard uses the following data sources:</p>
+   <p>This portal uses the following data sources:</p>
    <ul>
      <li>CEDS country-level emissions data: <a href='https://zenodo.org/records/10904361' target='_blank'>CEDS v2024.04.01 (Zenodo)</a></li>
      <li>CEDS gridded emissions data: <a href='https://rcdtn1.pnl.gov/data/CEDS/CEDS_release-v_2024_07_08_metadata_fix/gridded_emissions/bulk_emissions/fine_grids/' target='_blank'>CEDS Gridded Data</a></li>
@@ -38,7 +38,7 @@ output$about <- renderUI({
    </ul>
    
    <h3>Methodology</h3>
-   <p>The emissions data in this dashboard is processed and analyzed using the following methodology:</p>
+   <p>The emissions data in this portal is processed and analyzed using the following methodology:</p>
    
    <h4>Country-Level Data</h4>
    <ul>

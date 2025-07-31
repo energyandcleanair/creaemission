@@ -7,7 +7,7 @@ library(plotly)
 
 ui <- navbarPage(
     title=div(img(src="crea_logo.svg", height=44)),
-    windowTitle="CREA - CEDS | Emissions inventory",
+    windowTitle="CREA Emission Portal",
     theme = "theme.css",
     id = "nav-page",
     source(file.path("ui", "tab_charts.R"),  local = TRUE)$value,
