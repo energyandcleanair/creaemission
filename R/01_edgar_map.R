@@ -125,7 +125,7 @@ EDGARMap <- R6::R6Class(
         if (length(parts) >= 3) {
           # Extract pollutant (parts[1]), year (parts[2])
           pollutant_from_file <- parts[1]
-          pollutant <- map_values(pollutant_from_file, EDGAR_POLLUTANTS)
+          pollutant_mapped <- map_values(pollutant_from_file, EDGAR_POLLUTANTS)
           year_from_file <- as.numeric(parts[2])
 
           if (!is.na(year_from_file)) {
@@ -137,7 +137,7 @@ EDGARMap <- R6::R6Class(
               if (length(sector_names) > 0) {
                 for (sector_name in sector_names) {
                   available_data[[length(available_data) + 1]] <- data.frame(
-                    pollutant = pollutant,
+                    pollutant = pollutant_mapped,
                     sector = map_values(sector_name, EDGAR_PROVINCIAL_SECTORS),
                     year = year_from_file,
                     stringsAsFactors = FALSE
@@ -152,6 +152,8 @@ EDGARMap <- R6::R6Class(
         }
       }
 
+
+
       if (length(available_data) == 0) {
         return(data.frame(
           pollutant = character(),
@@ -161,7 +163,19 @@ EDGARMap <- R6::R6Class(
         ))
       }
 
-      result <- do.call(rbind, available_data)
+      # Combine data frames more robustly
+      if (length(available_data) > 0) {
+        result <- do.call(rbind, available_data)
+        # Reset row names to avoid conflicts
+        rownames(result) <- NULL
+      } else {
+        result <- data.frame(
+          pollutant = character(),
+          sector = character(),
+          year = integer(),
+          stringsAsFactors = FALSE
+        )
+      }
 
       # Apply filters if provided
       if (!is.null(pollutant)) {
@@ -246,7 +260,7 @@ EDGARMap <- R6::R6Class(
     #' @return Path to downloaded file or NULL if download failed
     download_nc = function(pollutant, sector) {
       # Create cache directory
-      cache_dir <- file.path(self$cache_dir, "netcdf")
+      cache_dir <- file.path(self$cache_dir, "gridded")
       if (!dir.exists(cache_dir)) {
         dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
       }

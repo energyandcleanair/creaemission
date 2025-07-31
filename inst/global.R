@@ -24,16 +24,8 @@ sel <- dplyr::select
 # Files are now in the same directory and will be loaded by the package
 # No need to source them explicitly
 
-pollutants <- c("NOx"="NOx",
-                "SO2"="SO2",
-                "CH4"="CH4",
-                "CO2"="CO2",
-                "NH3"="NH3",
-                "NMVOC"="NMVOC",
-                "BC"="BC",
-                "CO"="CO",
-                "N2O"="N2O"
-)
+# Pollutants are now derived dynamically from available_data
+# No global pollutants variable needed
 color_bys <- c("Country"="region_name", "Sector"="sector", "Fuel"="fuel")
 group_bys <- c("Country"="region_name", "Sector"="sector", "Fuel"="fuel")
 
@@ -55,6 +47,10 @@ sources <- list(
   provincial = list(
     ceds = CEDSProvincial$new(),
     edgar = EDGARProvincial$new()
+  ),
+  map = list(
+    ceds = CEDSMap$new(),
+    edgar = EDGARMap$new()
   )
 )
 
@@ -67,6 +63,8 @@ get_current_source <- function(source_name, region_type) {
     return(sources$national[[source_name_lower]])
   } else if (region_type_lower == "provincial") {
     return(sources$provincial[[source_name_lower]])
+  } else if (region_type_lower == "map") {
+    return(sources$map[[source_name_lower]])
   } else {
     stop(glue::glue("Invalid region_type: {region_type}"))
   }

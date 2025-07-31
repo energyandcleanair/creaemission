@@ -331,7 +331,7 @@ EDGARProvincial <- R6::R6Class(
         sectors <- names(EDGAR_PROVINCIAL_SECTORS)
       }
 
-      dir_netcdf <- file.path(self$cache_dir, "netcdf")
+      dir_netcdf <- file.path(self$cache_dir, "gridded")
       if (!dir.exists(dir_netcdf)) {
         dir.create(dir_netcdf, recursive = TRUE, showWarnings = FALSE)
       }

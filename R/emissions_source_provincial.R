@@ -22,8 +22,7 @@ EmissionsSourceProvincial <- R6::R6Class(
     #' @field provincial_data_dir Directory for provincial data
     provincial_data_dir = NULL,
 
-    #' @field gridded_data_dir Directory for gridded data
-    gridded_data_dir = NULL,
+
 
     #' @field cache_dir Directory for temporary files
     cache_dir = NULL,
@@ -57,7 +56,7 @@ EmissionsSourceProvincial <- R6::R6Class(
     #' @description Download gridded data for provincial analysis
     #' @param years Years to process
     #' @param pollutants Vector of pollutants to process
-    #' @return List with gridded directory path and filtered files
+    #' @return List with directory path and filtered files
     download_gridded_data = function(years = NULL, pollutants = NULL) {
       stop("Method must be implemented by subclass")
     },
@@ -142,11 +141,9 @@ EmissionsSourceProvincial <- R6::R6Class(
         pollutants <- c("NOx", "BC", "CH4", "CO", "CO2", "N2O", "NH3", "NMVOC", "OC", "SO2")
       }
 
-      # Create directory for netCDF files
-      dir_netcdf <- file.path(self$cache_dir, "gridded")
-      if (!dir.exists(dir_netcdf)) {
-        dir.create(dir_netcdf, recursive = TRUE, showWarnings = FALSE)
-      }
+      # Note: Directory creation is handled by subclasses in download_gridded_data()
+      # Subclasses should create "gridded" directories for processed files
+      # and avoid creating duplicate "netcdf" directories
 
       # Process each country separately to avoid memory issues
       emissions <- lapply(iso2s, function(iso2) {

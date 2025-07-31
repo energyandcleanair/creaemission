@@ -289,8 +289,8 @@ CEDSProvincial <- R6::R6Class(
         years <- self$available_years
       }
 
-      # Use the cache directory directly instead of creating a separate gridded directory
-      dir_netcdf <- file.path(self$cache_dir, "netcdf")
+      # Use the gridded directory for processed files
+      dir_netcdf <- file.path(self$cache_dir, "gridded")
       if (!dir.exists(dir_netcdf)) {
         dir.create(dir_netcdf, recursive = TRUE, showWarnings = FALSE)
       }

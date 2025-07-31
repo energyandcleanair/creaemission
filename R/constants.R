@@ -8,11 +8,8 @@ REGIONTYPE_NATIONAL <- "national"
 REGIONTYPE_PROVINCIAL <- "provincial"
 REGIONTYPES <- c(REGIONTYPE_NATIONAL, REGIONTYPE_PROVINCIAL)
 
-# Default pollutants
-POLLUTANTS_DEFAULT <- c(
-  "NOx", "BC", "CH4", "CO", "CO2", 
-  "N2O", "NH3", "NMVOC", "OC", "SO2"
-)
+# Pollutants are now derived dynamically from available_data
+# No default pollutants constant needed
 
 # File paths
 PATH_DATA <- "data"

@@ -509,8 +509,9 @@ output$selectPollutant <- renderUI({
   available_data <- source_obj$list_available_data()
   available_pollutants <- unique(available_data$pollutant)
 
-  # Filter pollutants to only those available in current source
-  available_pollutants_choices <- pollutants[pollutants %in% available_pollutants]
+  # Create choices directly from available pollutants (no global filtering)
+  available_pollutants_choices <- available_pollutants
+  names(available_pollutants_choices) <- available_pollutants
 
   # Get previously selected pollutant if it's still available
   prev_selected <- selected_pollutant()

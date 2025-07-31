@@ -215,7 +215,7 @@ CEDSMap <- R6::R6Class(
     #' @return Path to downloaded file or NULL if download failed
     download_nc = function(pollutant, year) {
       # Create cache directory
-      cache_dir <- file.path(self$cache_dir, "netcdf")
+      cache_dir <- file.path(self$cache_dir, "gridded")
       if (!dir.exists(cache_dir)) {
         dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
       }
