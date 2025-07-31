@@ -356,11 +356,17 @@ EDGARMap <- R6::R6Class(
         if (file.exists(nc_file)) {
           filename <- basename(nc_file)
           # Parse EDGAR filename pattern: v8.1_FT2022_AP_NMVOC_2022_RCO_emi.nc
+          # or v8.1_FT2022_AP_PM2.5_2022_SWD_INC_emi.nc
           parts <- strsplit(filename, "_")[[1]]
           if (length(parts) >= 6) {
             pollutant <- parts[4]
             year <- parts[5]
-            sector <- parts[6]
+            
+            # Handle sectors with underscores (like SWD_INC)
+            # Find the sector part by looking for the pattern before "_emi.nc"
+            sector_part <- gsub("_emi\\.nc$", "", filename)
+            sector_part <- gsub(paste0("^.*_", pollutant, "_", year, "_"), "", sector_part)
+            sector <- sector_part
 
             key <- paste(pollutant, year, sep = "_")
             if (!(key %in% names(file_groups))) {
