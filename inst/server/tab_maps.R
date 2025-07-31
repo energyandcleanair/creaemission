@@ -290,7 +290,6 @@ output$map <- renderLeaflet({
       setView(lng = 0, lat = 0, zoom = 2)
   } else {
 
-
     # Calculate breaks
     saturation <- quantile(emission_values, 0.999, na.rm = TRUE)
     breaks <- c(seq(0, saturation, length.out = 14), max(emission_values, na.rm = TRUE))
