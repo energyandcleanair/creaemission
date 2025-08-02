@@ -115,6 +115,8 @@ get_data_path <- function(subdir = NULL) {
     }
   }
 
+  # Logging
+  message(glue::glue("Data path: {data_path}. Exists: {dir.exists(data_path)}"))
   return(data_path)
 }
 

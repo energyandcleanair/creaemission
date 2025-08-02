@@ -63,7 +63,7 @@ EDGARProvincial <- R6::R6Class(
     #' @param buffer_into_sea_km Buffer distance into sea in km
     #' @return Invisibly returns paths to saved files
     build = function(years = NULL,
-                    pollutants = EDGAR_POLLUTANTS,
+                    pollutants = names(EDGAR_POLLUTANTS),
                     sectors = names(EDGAR_PROVINCIAL_SECTORS),
                     level = 1,
                     res = "low",

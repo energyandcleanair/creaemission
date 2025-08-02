@@ -278,10 +278,12 @@ output$map <- renderLeaflet({
   # Convert to appropriate units for display
   emission <- r * 1e6  # Convert to appropriate scale
 
+  # Apply pole fix for global data (fix for Leaflet display issues)
+  # emission <- terra::crop(emission, terra::ext(-180, 180, -89, 89))
+
   # Calculate breaks for visualization
   emission_values <- emission[]
   emission_values <- emission_values[!is.na(emission_values) & emission_values > 0]
-
 
   if (length(emission_values) == 0) {
     # Create empty map if no data
@@ -289,7 +291,6 @@ output$map <- renderLeaflet({
       addTiles() %>%
       setView(lng = 0, lat = 0, zoom = 2)
   } else {
-
     # Calculate breaks
     saturation <- quantile(emission_values, 0.999, na.rm = TRUE)
     breaks <- c(seq(0, saturation, length.out = 14), max(emission_values, na.rm = TRUE))

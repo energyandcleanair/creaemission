@@ -1,4 +1,4 @@
-# library(creaemission)
+library(creaemission)
 library(mongolite)
 library(dbplyr)
 library(tibble)

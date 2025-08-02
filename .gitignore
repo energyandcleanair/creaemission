@@ -24,7 +24,7 @@ tests/testthat/_snaps/*.md
 temp/
 tmp/
 
-# Cache directories
+# Cache directories - too large for deployment (94GB+)
 cache/
 data/cache/
 
@@ -48,3 +48,5 @@ Thumbs.db
 
 # Shiny deployment
 rsconnect/
+data/edgar/maps/*.nc
+data/ceds/maps/*.nc
