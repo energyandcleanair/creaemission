@@ -22,6 +22,14 @@ library(mapview)
 library(glue)
 sel <- dplyr::select
 
+# DEBUG prints for paths
+message(glue("==== PROJECT ROOT: {get_project_root()}"))
+message(glue("==== PROJECT DATA: {get_data_path()}"))
+message(glue("==== CURRENT FOLDER: {getwd()}"))
+message(glue("{c('==== FILES IN CURRENT FOLDER:\n', paste(list.files(), collapse='\n'))}"))
+message(glue("{c('==== FILES IN PARENT FOLDER:\n', paste(list.files('..'), collapse='\n'))}"))
+
+
 # Files are now in the same directory and will be loaded by the package
 # No need to source them explicitly
 

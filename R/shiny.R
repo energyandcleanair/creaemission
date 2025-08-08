@@ -13,6 +13,7 @@ deployShinyApp <- function() {
 
   # remotes::install_version('curl', version = '6.2.3')
   remotes::install_github("energyandcleanair/creaemission@feat/edgar", upgrade = T)
+  remotes::install_version('curl', version = '6.2.3')
 
   rsconnect::setAccountInfo(name=Sys.getenv("SHINYAPP_ACCOUNT"),
                             token=Sys.getenv("SHINYAPP_TOKEN"),
