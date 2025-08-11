@@ -40,6 +40,9 @@ test_that("EDGAR map source works correctly", {
   expect_true(any(!is.na(values)))
   expect_true(any(values > 0, na.rm = TRUE))
 
+  # Test 8: Check that raster has correct units (skip for now)
+  expect_equal(terra::units(result), "kg m-2 yr-1")
+
   # For now, just test that the class can be instantiated and basic methods work
   expect_true(inherits(edgar_map, "EDGARMap"))
   expect_true(inherits(edgar_map, "SourceMap"))

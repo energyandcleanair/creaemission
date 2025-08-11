@@ -41,6 +41,7 @@ test_that("EDGAR national source sum matches raster source sum", {
 
   # Test 4: Get global raster data
   global_raster <- edgar_map$get(test_pollutant, test_sector_raster, test_year, "wld")
+  expect_equal(terra::units(global_raster), "kg m-2 yr-1")
 
   if (is.null(global_raster)) {
     stop("Global raster data not available for test parameters")

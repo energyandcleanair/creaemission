@@ -31,6 +31,7 @@ test_that("National source sum matches raster source sum", {
 
   # Test 4: Get global raster data
   global_raster <- ceds_map$get(test_pollutant, test_sector_raster, test_year, "wld")
+  expect_equal(terra::units(global_raster), "kg m-2 yr-1")
 
   if (is.null(global_raster)) {
     stop("Global raster data not available for test parameters")
@@ -42,13 +43,13 @@ test_that("National source sum matches raster source sum", {
   cell_areas_m2 <- terra::cellSize(global_raster, unit = "m")
 
   # Convert from kg/m2/s to kg/s for each cell
-  raster_kg_s <- global_raster * cell_areas_m2
+  raster_kg_yr <- global_raster * cell_areas_m2
 
   # Sum all cells to get total kg/s
-  raster_sum_kg_s <- sum(raster_kg_s[], na.rm = TRUE)
+  raster_sum_kg_yr <- sum(raster_kg_yr[], na.rm = TRUE)
 
-  # Convert to kt/year: kg/s * (365 * 24 * 3600) / (1000 * 1000)
-  raster_sum_kt <- raster_sum_kg_s * 365 * 24 * 3600 / 1e6
+  # Convert to kt/year
+  raster_sum_kt <- raster_sum_kg_yr / 1e6
 
   # Test 6: Compare the two sums
   # Allow for some tolerance due to different data sources and processing
