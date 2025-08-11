@@ -43,7 +43,7 @@ EmissionsSourceProvincial <- R6::R6Class(
 
       self$data_dir <- file.path("data", tolower(source_name))
       self$provincial_data_dir <- file.path(self$data_dir, "provincial")
-      self$cache_dir <- file.path("cache", tolower(source_name))
+      self$cache_dir <- get_cache_folder(tolower(source_name))
 
       # Create directories if they don't exist
       for (dir in c(self$data_dir, self$provincial_data_dir, self$cache_dir)) {

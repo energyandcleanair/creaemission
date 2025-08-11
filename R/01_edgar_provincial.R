@@ -44,7 +44,7 @@ EDGARProvincial <- R6::R6Class(
       super$initialize(data_dir = data_dir, map_source = map_source)
       self$version <- version
       self$available_years <- available_years
-      self$cache_dir <- file.path(get_project_root(), "cache", "edgar")
+      self$cache_dir <- get_cache_folder("edgar")
 
       # Create directories if they don't exist
       for (dir in c(self$data_dir, self$cache_dir)) {
@@ -62,12 +62,14 @@ EDGARProvincial <- R6::R6Class(
     #' @param res Resolution
     #' @param buffer_into_sea_km Buffer distance into sea in km
     #' @return Invisibly returns paths to saved files
-    build = function(years = NULL,
-                    pollutants = names(EDGAR_POLLUTANTS),
-                    sectors = names(EDGAR_PROVINCIAL_SECTORS),
-                    level = 1,
-                    res = "low",
-                    buffer_into_sea_km = 20) {
+    build = function(
+      iso2s,
+      years = NULL,
+      pollutants = names(EDGAR_POLLUTANTS),
+      sectors = names(EDGAR_PROVINCIAL_SECTORS),
+      level = 1,
+      res = "low",
+      buffer_into_sea_km = 20) {
 
       # Use all available years if years is NULL
       if (is.null(years)) {
@@ -244,7 +246,7 @@ EDGARProvincial <- R6::R6Class(
 
       # Clear provincial data files
       if (dir.exists(self$data_dir)) {
-        rds_files <- list.files(self$data_dir, pattern = "\\.rds$", full.names = TRUE)
+        rds_files <- list.files(self$data_dir, pattern = "\\.rds$", full.names = TRUE, recusive = TRUE)
         for (file in rds_files) {
           if (file.remove(file)) {
             removed_count <- removed_count + 1
@@ -429,7 +431,7 @@ EDGARProvincial <- R6::R6Class(
           year = sapply(layer_name, function(x) file_metadata[[x]]$year)
         ) %>%
         mutate(
-          value = value / 1e3,  # Convert t to kt
+          value = value / 1e3,  # Convert t/year to kt/year
           unit = "kt/year"
         ) %>%
         dplyr::select(-layer_name)
@@ -455,24 +457,6 @@ EDGARProvincial <- R6::R6Class(
 
       message(glue::glue("EDGAR extraction complete. Processed {nrow(emissions)} records from {length(stack_list)} files."))
       return(emissions)
-    },
-
-    #' @description Save provincial data
-    #' @param data Provincial emissions data
-    #' @return Invisibly returns paths to saved files
-    save_provincial_data = function(data) {
-      # Save by country
-      country_files <- split(data, data$iso3) %>%
-        purrr::map(function(country_data) {
-          iso3 <- tolower(country_data$iso3[1])
-          file_path <- file.path(self$data_dir, paste0(iso3, ".rds"))
-          saveRDS(country_data, file_path)
-          return(file_path)
-        })
-
-      return(invisible(list(
-        country_files = country_files
-      )))
     }
   )
 )

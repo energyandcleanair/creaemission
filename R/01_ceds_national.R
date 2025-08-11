@@ -38,7 +38,7 @@ CEDSNational <- R6::R6Class(
       self$version <- version
       self$available_years <- available_years
       self$base_url <- "https://zenodo.org/records/10904361"
-      self$cache_dir <- file.path(get_project_root(), "cache", "ceds")
+      self$cache_dir <- get_cache_folder("ceds")
 
       # Create directories if they don't exist
       for (dir in c(self$data_dir, self$cache_dir)) {

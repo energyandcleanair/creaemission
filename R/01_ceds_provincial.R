@@ -40,7 +40,7 @@ CEDSProvincial <- R6::R6Class(
       super$initialize(data_dir = data_dir, map_source = map_source)
       self$version <- version
       self$available_years <- available_years
-      self$cache_dir <- file.path(get_project_root(), "cache", "ceds")
+      self$cache_dir <- get_cache_folder("ceds")
 
       # Create directories if they don't exist
       for (dir in c(self$data_dir, self$cache_dir)) {
@@ -261,7 +261,7 @@ CEDSProvincial <- R6::R6Class(
 
       # Clear provincial data files
       if (dir.exists(self$data_dir)) {
-        rds_files <- list.files(self$data_dir, pattern = "\\.rds$", full.names = TRUE)
+        rds_files <- list.files(self$data_dir, pattern = "\\.rds$", full.names = TRUE, recursive = TRUE)
         for (file in rds_files) {
           if (file.remove(file)) {
             removed_count <- removed_count + 1
@@ -342,7 +342,9 @@ CEDSProvincial <- R6::R6Class(
 
         # Read netCDF file
         nc <- ncdf4::nc_open(nc_file)
-        r <- terra::rast(nc_file)
+        r_kg_m2_s <- terra::rast(nc_file)
+        stopifnot(unique(terra::units(r_kg_m2_s)) == "kg m-2 s-1")
+
 
         # Get sector labels from netCDF attributes
         # "0: Agriculture; 1: Energy; 2: Industrial; 3: Transportation ...
@@ -369,10 +371,9 @@ CEDSProvincial <- R6::R6Class(
           }
         })
 
-        # Convert to kg/s
-        area_r_m2 <- terra::cellSize(r, unit="m")
-        message(glue::glue("Processing {filename}: converting from kg/m2/s to kg/s"))
-        r_kg_s <- r * area_r_m2
+        # Convert from kg m-2 yr-1 to kt yr-1
+        area_r_m2 <- terra::cellSize(r_kg_m2_s, unit="m")
+        r_kt_yr <- r_kg_m2_s * area_r_m2 / 1e6 * 365 * 24 * 3600
 
         # CEDS files contain monthly data (12 months) for each sector
         # Layer names are like "NMVOC_em_anthro_sector=0_1" where:
@@ -381,7 +382,7 @@ CEDSProvincial <- R6::R6Class(
         # We need to aggregate monthly data to yearly totals
 
         # Get layer names to understand the structure
-        layer_names <- names(r_kg_s)
+        layer_names <- names(r_kt_yr)
 
         # Group layers by sector and aggregate monthly data to yearly
         sector_yearly_data <- list()
@@ -393,7 +394,7 @@ CEDSProvincial <- R6::R6Class(
 
           if (length(sector_layers) > 0) {
             # Extract the layers for this sector
-            sector_stack <- r_kg_s[[sector_layers]]
+            sector_stack <- r_kt_yr[[sector_layers]]
 
             # Average across all months to get yearly average flux
             yearly_average <- terra::app(sector_stack, mean, na.rm = TRUE)
@@ -445,7 +446,7 @@ CEDSProvincial <- R6::R6Class(
           year = sapply(layer_name, function(x) file_metadata[[x]]$year)
         ) %>%
         mutate(
-          value = value * 24 * 3600 * 365 / 1e6,  # Convert from kg/s to kt/year
+          value = value,
           unit = "kt/year"
         ) %>%
         dplyr::select(-layer_name)

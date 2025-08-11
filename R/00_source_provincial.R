@@ -17,7 +17,7 @@ SourceProvincial <- R6::R6Class(
       self$data_dir <- data_dir
       self$map_source <- map_source
     },
-    
+
     #' @description Format results to standard format
     #' @param data Data frame to format
     #' @return Formatted data frame
@@ -25,18 +25,18 @@ SourceProvincial <- R6::R6Class(
       if (is.null(data) || nrow(data) == 0) {
         return(data)
       }
-      
+
       # Ensure iso3 is lowercase for consistency
       if ("iso3" %in% names(data)) {
         data$iso3 <- tolower(data$iso3)
       }
-      
+
       # Future formatting rules can be added here:
       # - Standardize pollutant names
       # - Standardize sector names
       # - Standardize units
       # - etc.
-      
+
       return(data)
     },
     #' @description Build provincial emissions data
@@ -142,7 +142,7 @@ SourceProvincial <- R6::R6Class(
         purrr::map(function(year_data) {
           year <- year_data$year[1]
           file_path <- file.path(by_year_dir,
-                                paste0(tolower(self$source_name), "_provincial_", year, ".rds"))
+                                paste0("provincial_", year, ".rds"))
           saveRDS(year_data, file_path)
           return(file_path)
         })

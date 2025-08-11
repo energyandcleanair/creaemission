@@ -32,7 +32,7 @@ EDGARMap <- R6::R6Class(
       super$initialize(data_dir = data_dir)
       self$version <- version
       self$available_years <- available_years
-      self$cache_dir <- file.path(get_project_root(), "cache", "edgar")
+      self$cache_dir <- get_cache_folder("edgar")
 
       # Create directories if they don't exist
       for (dir in c(self$data_dir, self$cache_dir)) {
@@ -120,9 +120,9 @@ EDGARMap <- R6::R6Class(
       for (file in nc_files) {
         filename <- basename(file)
         # Parse EDGAR processed filename pattern: pollutant_year_vversion.nc
-        parts <- strsplit(filename, "_")[[1]]
+        parts <- strsplit(tools::file_path_sans_ext(filename), "_")[[1]]
 
-        if (length(parts) >= 3) {
+        if (length(parts) >= 2) {
           # Extract pollutant (parts[1]), year (parts[2])
           pollutant_from_file <- parts[1]
           pollutant_mapped <- map_values(pollutant_from_file, EDGAR_POLLUTANTS)
@@ -151,8 +151,6 @@ EDGARMap <- R6::R6Class(
           }
         }
       }
-
-
 
       if (length(available_data) == 0) {
         return(data.frame(
@@ -203,7 +201,7 @@ EDGARMap <- R6::R6Class(
 
       # Look for processed NetCDF file with new naming pattern
       # Pattern: pollutant_year_vversion.nc
-      nc_file <- file.path(self$data_dir, paste0(pollutant, "_", year, "_v", self$version, ".nc"))
+      nc_file <- file.path(self$data_dir, paste0(pollutant, "_", year, ".nc"))
 
       if (!file.exists(nc_file)) {
         return(NULL)
@@ -361,7 +359,7 @@ EDGARMap <- R6::R6Class(
           if (length(parts) >= 6) {
             pollutant <- parts[4]
             year <- parts[5]
-            
+
             # Handle sectors with underscores (like SWD_INC)
             # Find the sector part by looking for the pattern before "_emi.nc"
             sector_part <- gsub("_emi\\.nc$", "", filename)
@@ -394,28 +392,24 @@ EDGARMap <- R6::R6Class(
           tryCatch({
             # Load the raw NetCDF file
             nc_stack <- terra::rast(nc_file)
+            stopifnot(all(terra::units(nc_stack)=="Tonnes"))
 
-            # EDGAR files are in tonnes, convert to kg/m2/year
+            # EDGAR files are in tonnes (total annual emissions per cell)
             # First, get the emissions layer
             if ("emissions" %in% names(nc_stack)) {
-              emissions_raster <- nc_stack[["emissions"]]
+              r_tonne_yr <- nc_stack[["emissions"]]
 
-              # Convert from tonnes to kg (1 tonne = 1000 kg)
-              emissions_kg <- emissions_raster * 1000
-
-              # Get cell areas in m2
-              cell_areas_m2 <- terra::cellSize(emissions_kg, unit = "m")
-
-              # Convert to kg/m2/year
-              emissions_kg_m2_year <- emissions_kg / cell_areas_m2
+              # Convert from t/cell/year to kg/m2/s to be similar with CEDS
+              area_m2 <- terra::cellSize(r_tonne_yr, unit="m")
+              r_kg_m2_yr <- r_tonne_yr * 1000 / area_m2
 
               # Set the units attribute
-              terra::units(emissions_kg_m2_year) <- "kg m-2 year-1"
+              terra::units(r_kg_m2_yr) <- "kg m-2 yr-1"
 
               # Set layer name to sector
-              names(emissions_kg_m2_year) <- sector
+              names(r_kg_m2_yr) <- sector
 
-              sector_rasters[[sector]] <- emissions_kg_m2_year
+              sector_rasters[[sector]] <- r_kg_m2_yr
 
               message(glue::glue("Processed sector {sector} for {pollutant} {year}"))
             } else {
@@ -432,7 +426,7 @@ EDGARMap <- R6::R6Class(
           processed_stack <- terra::rast(sector_rasters)
 
           # Create processed filename: pollutant_year_vversion.nc
-          processed_filename <- paste0(pollutant, "_", year, "_v", self$version, ".nc")
+          processed_filename <- paste0(pollutant, "_", year, ".nc")
           dest_file <- file.path(self$data_dir, processed_filename)
 
           # Save the processed raster stack with units

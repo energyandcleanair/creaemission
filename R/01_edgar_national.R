@@ -39,7 +39,7 @@ EDGARNational <- R6::R6Class(
       self$version <- version
       self$available_years <- available_years
       self$base_url <- "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/EDGAR/datasets"
-      self$cache_dir <- file.path(get_project_root(), "cache", "edgar")
+      self$cache_dir <- get_cache_folder("edgar")
 
       # Create directories if they don't exist
       for (dir in c(self$data_dir, self$cache_dir)) {

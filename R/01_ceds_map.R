@@ -32,7 +32,7 @@ CEDSMap <- R6::R6Class(
       super$initialize(data_dir = data_dir)
       self$version <- version
       self$available_years <- available_years
-      self$cache_dir <- file.path(get_project_root(), "cache", "ceds")
+      self$cache_dir <- get_cache_folder("ceds")
 
       # Create directories if they don't exist
       for (dir in c(self$data_dir, self$cache_dir)) {
@@ -255,7 +255,11 @@ CEDSMap <- R6::R6Class(
           message(glue::glue("Processing: {basename(nc_file)}"))
 
           # Load the raw NetCDF file
-          nc_stack <- terra::rast(nc_file)
+          r_kg_m2_s <- terra::rast(nc_file)
+          stopifnot(unique(terra::units(r_kg_m2_s)) == "kg m-2 s-1")
+
+          # Convert to kg m-2 yr
+          r_kg_m2_yr <- r_kg_m2_s * 365 * 24 * 3600
 
           # CEDS files contain monthly data (12 months) for each sector
           # Layer names are like "SO2_em_anthro_sector=0_1" where:
@@ -264,7 +268,7 @@ CEDSMap <- R6::R6Class(
           # We need to aggregate monthly data to yearly totals per sector
 
           # Get unique sector IDs from layer names
-          layer_names <- names(nc_stack)
+          layer_names <- names(r_kg_m2_yr)
           sector_ids <- unique(stringr::str_match(layer_names, "sector=([0-9]+)_")[, 2])
           sector_ids <- sector_ids[!is.na(sector_ids)]
 
@@ -273,17 +277,20 @@ CEDSMap <- R6::R6Class(
           for (sector_id in sector_ids) {
             # Find all layers for this sector (across all 12 months)
             sector_pattern <- paste0("sector=", sector_id, "_")
-            sector_layers <- grep(sector_pattern, names(nc_stack), value = TRUE)
+            sector_layers <- grep(sector_pattern, names(r_kg_m2_yr), value = TRUE)
             sector_name <- CEDS_PROVINCIAL_SECTORS[[sector_id]]
 
             stopifnot(length(sector_layers)==12)
 
             if (length(sector_layers) > 0) {
               # Extract the layers for this sector
-              sector_stack <- nc_stack[[sector_layers]]
+              sector_stack <- r_kg_m2_yr[[sector_layers]]
 
               # Average across all months to get yearly average flux
               sector_raster <- terra::app(sector_stack, mean, na.rm = TRUE)
+
+              # Set the units attribute for yearly average flux
+              terra::units(sector_raster) <- "kg m-2 yr-1"
 
               # Set layer name to sector ID
               names(sector_raster) <- sector_id

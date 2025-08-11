@@ -18,8 +18,10 @@ export(EDGARMap)
 # Sector mappings
 export(CEDS_NATIONAL_SECTORS)
 export(CEDS_PROVINCIAL_SECTORS)
+export(CEDS_POLLUTANTS)
 export(EDGAR_NATIONAL_SECTORS)
 export(EDGAR_PROVINCIAL_SECTORS)
+export(EDGAR_POLLUTANTS)
 
 # Region types
 export(REGIONTYPE_NATIONAL)
@@ -31,6 +33,7 @@ export(deployShinyApp)
 export(iso3_to_country)
 export(get_data_path)
 export(get_project_root)
+export(get_cache_folder)
 export(map_values)
 
 # Imports

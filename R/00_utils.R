@@ -78,6 +78,21 @@ clean_country_name <- function(x){
 get_project_root <- function() {
   # Try to find the project root by looking for key files
   current_dir <- getwd()
+  
+  # Check if we're running from testthat context
+  if (Sys.getenv("TESTTHAT") == "true" || 
+      any(grepl("testthat", search(), fixed = TRUE)) ||
+      any(grepl("testthat", .libPaths(), fixed = TRUE))) {
+    # We're in a test context, look for the package root
+    # Check if we're in tests/testthat directory
+    if (basename(current_dir) == "testthat") {
+      return(dirname(dirname(current_dir)))
+    }
+    # Check if we're in tests directory
+    if (basename(current_dir) == "tests") {
+      return(dirname(current_dir))
+    }
+  }
 
   # Check if we're in the inst directory
   if (basename(current_dir) == "inst") {
@@ -97,6 +112,31 @@ get_project_root <- function() {
 
   # If we can't find it, assume we're in the project root
   return(current_dir)
+}
+
+#' Get the cache directory path
+#' @param subdir Optional subdirectory within cache (e.g., "ceds", "edgar")
+#' @return Path to the cache directory
+#' @export
+get_cache_folder <- function(subdir = NULL) {
+  project_root <- get_project_root()
+  cache_path <- file.path(project_root, "cache")
+  
+  if (!is.null(subdir)) {
+    if (is.character(subdir) && length(subdir) > 0) {
+      # Handle vector of subdirectories
+      for (dir in subdir) {
+        cache_path <- file.path(cache_path, dir)
+      }
+    }
+  }
+  
+  # Create cache directory if it doesn't exist
+  if (!dir.exists(cache_path)) {
+    dir.create(cache_path, recursive = TRUE, showWarnings = FALSE)
+  }
+  
+  return(cache_path)
 }
 
 #' Get the data directory path
