@@ -13,8 +13,7 @@ REGIONTYPES <- c(REGIONTYPE_NATIONAL, REGIONTYPE_PROVINCIAL)
 
 # File paths
 PATH_DATA <- "data"
-# PATH_CACHE is now dynamically determined by get_cache_folder()
-# This ensures consistency between main code and tests
+PATH_CACHE <- "cache"
 
 # Units
 UNIT_KT_YEAR <- "kt/year"

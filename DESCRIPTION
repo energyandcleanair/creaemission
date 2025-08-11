@@ -23,11 +23,22 @@ Imports:
     plotly,
     ggplot2,
     RColorBrewer,
-    shiny (>= 1.7.6),
     countrycode,
-    stars,
+    shiny,
+    shinydashboard,
+    shinycssloaders,
+    shinyWidgets,
+    leaflet,
     mapview,
-    jsonlite
+    jsonlite,
+    colorRamps,
+    DT,
+    shinyBS,
+    rcrea,
+    creahelpers
+Remotes:
+    energyandcleanair/rcrea,
+    energyandcleanair/creahelpers
 Suggests: 
     testthat (>= 3.0.0),
     knitr,

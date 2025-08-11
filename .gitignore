@@ -27,6 +27,8 @@ tmp/
 # Cache directories - too large for deployment (94GB+)
 cache/
 data/cache/
+# Symlink
+inst/data 
 
 # Large data files
 *.nc

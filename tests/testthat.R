@@ -8,6 +8,6 @@
 # * https://testthat.r-lib.org/reference/test_local.html
 
 library(testthat)
-library(creaemission)
+library(ceds_dashboard)
 
-test_check("creaemission") 
+test_check("ceds_dashboard") 

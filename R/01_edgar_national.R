@@ -264,7 +264,7 @@ EDGARNational <- R6::R6Class(
         message(glue::glue("Downloading EDGAR data for {poll}"))
 
         # Construct URL
-        url <- glue::glue("{self$base_url}/v81_FT2022_AP_new/EDGAR_{poll}_1970_2022.zip")
+        url <- glue::glue("{self$base_url}/v81_FT2022_AP_new/EDGAR_{gsub('\\\\.','',poll)}_1970_2022.zip")
         dest_file <- file.path(download_dir, glue::glue("EDGAR_{poll}_1970_2022.zip"))
 
         # For SO2 need to append _v2.zip
