@@ -11,7 +11,9 @@ deployShinyApp <- function() {
   try(dotenv::load_dot_env())
   try(readRenviron(".Renviron"))
 
-  # remotes::install_version('curl', version = '6.2.3')
+
+  # We need to install the package from github so that
+  # ShinyApps can reproduce the environment
   remotes::install_github("energyandcleanair/creaemission@feat/edgar", upgrade = T)
   remotes::install_version('curl', version = '6.2.3')
 
@@ -19,21 +21,31 @@ deployShinyApp <- function() {
                             token=Sys.getenv("SHINYAPP_TOKEN"),
                             secret=Sys.getenv("SHINYAPP_SECRET"))
 
+  # Create symlink to data folder
+  create_data_symlink()
+
   # Deploy production - now using the inst/ folder structure
   rsconnect::deployApp("inst",
-                       # Include all necessary files
                        appFiles = c(
-                       #   # Shiny app files
-                         file.path(gsub("inst/", "", fs::dir_ls("inst", recurse = TRUE))),
-                       #   # Data folder (needed by the app)
-                         file.path("..",fs::dir_ls("data", recurse = TRUE))
-                       #   # Package files that might be needed
-                       #   # fs::dir_ls("R", recurse = TRUE, glob = "*.R"),
-                       #   # "DESCRIPTION",
-                       #   # "NAMESPACE"
+                        file.path(gsub("inst/", "", fs::dir_ls("inst", recurse = TRUE))),
+                        file.path(fs::dir_ls("data", recurse = TRUE))
                        ),
-                       appName="emission2",
+                       appName="emission4",
                        account = Sys.getenv("SHINYAPP_ACCOUNT"),
                        forceUpdate = T)
 
+}
+
+create_data_symlink <- function() {
+  # Create a symlink inst/data to data
+  data_path <- file.path(getwd(), "data")
+  symlink_path <- file.path(getwd(), "inst", "data")
+
+  # Remove any existing symlink or folder with the same name
+  if (file.exists(symlink_path) || dir.exists(symlink_path)) {
+    unlink(symlink_path, recursive = TRUE)
+  }
+
+  # Create the symlink (macOS / Linux)
+  system2("ln", c("-s", shQuote(data_path), shQuote(symlink_path)))
 }

@@ -23,10 +23,11 @@ Imports:
     plotly,
     ggplot2,
     RColorBrewer,
-    shiny,
+    shiny (>= 1.7.6),
     countrycode,
     stars,
-    mapview
+    mapview,
+    jsonlite
 Suggests: 
     testthat (>= 3.0.0),
     knitr,
