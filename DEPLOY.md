@@ -10,6 +10,7 @@ Set these environment variables for your deployment:
 export PROJECT_ID="crea-aq-data"
 export REGION="europe-west1"
 export SERVICE_NAME="emissiondashboard"
+export SERVICE_URL="emission.energyandcleanair.org"
 ```
 
 ## Prerequisites
@@ -95,3 +96,33 @@ gcloud run deploy $SERVICE_NAME \
   --min-instances 0 \
   --max-instances 2
 ```
+
+## Custom Domain Setup
+
+To use a custom subdomain like `emission.energyandcleanair.org`:
+
+### 1. Map Custom Domain
+
+```bash
+# Map the custom domain to your Cloud Run service
+gcloud beta run domain-mappings create \
+  --service $SERVICE_NAME \
+  --region $REGION \
+  --domain $SERVICE_URL \
+  --project $PROJECT_ID
+```
+
+### 2. DNS Configuration
+
+You'll need to add a CNAME record in Cloudflare:
+
+```
+Type: CNAME
+Name: emission
+Value: ghs.googlehosted.com.
+TTL: 3600 (or default)
+```
+
+### 3. SSL Certificate
+
+Google Cloud automatically provisions SSL certificates for custom domains. The process may take 24-48 hours.
