@@ -6,6 +6,8 @@ build_data <- function(min_year = 2000,
   sources <- toupper(sources)
   results <- list()
 
+  library(tidyverse)
+
   # Build CEDS data if requested
   if ("CEDS" %in% sources) {
     message("Building CEDS emissions data...")
