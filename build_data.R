@@ -1,4 +1,4 @@
-build_data <- function(min_year = 2020,
+build_data <- function(min_year = 2000,
                        provincial_years = 2022,
                        provincial_iso2s=c("ID", "IN", "ZA"),
                        sources = c("CEDS", "EDGAR"),
