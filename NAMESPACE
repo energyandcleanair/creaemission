@@ -1,0 +1,47 @@
+# Manually generated NAMESPACE file
+
+# Base classes
+export(SourceNational)
+export(SourceProvincial)
+export(SourceMap)
+
+# CEDS implementations
+export(CEDSNational)
+export(CEDSProvincial)
+export(CEDSMap)
+
+# EDGAR implementations
+export(EDGARNational)
+export(EDGARProvincial)
+export(EDGARMap)
+
+# Sector mappings
+export(CEDS_NATIONAL_SECTORS)
+export(CEDS_PROVINCIAL_SECTORS)
+export(EDGAR_NATIONAL_SECTORS)
+export(EDGAR_PROVINCIAL_SECTORS)
+
+# Region types
+export(REGIONTYPE_NATIONAL)
+export(REGIONTYPE_PROVINCIAL)
+export(REGIONTYPES)
+
+# Utility functions
+export(deployShinyApp)
+export(iso3_to_country)
+export(get_data_path)
+export(get_project_root)
+export(map_values)
+
+# Imports
+importFrom(R6, R6Class)
+importFrom(dplyr, "%>%")
+importFrom(tibble, tibble)
+importFrom(sf, st_as_sf, st_buffer, st_union)
+importFrom(terra, vect, rast, extract, crop, mask, cellSize, app, makeValid)
+importFrom(ncdf4, nc_open, nc_close, ncatt_get)
+importFrom(countrycode, countrycode)
+importFrom(glue, glue)
+importFrom(stringr, str_extract)
+importFrom(tidyr, pivot_longer)
+importFrom(purrr, map)

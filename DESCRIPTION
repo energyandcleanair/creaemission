@@ -1,0 +1,45 @@
+Package: creaemission
+Type: Package
+Title: CREA Emission Portal - Emissions Data Analysis and Visualization
+Version: 1.0.0
+Authors@R: 
+    person("CREA", "Hubert Thieriot", email = "hubert@energyandcleanair.org", role = c("aut", "cre"))
+Description: A comprehensive R package and Shiny portal for analyzing and visualizing emissions data from multiple sources (CEDS, EDGAR), with support for both national and provincial-level analysis, interactive charts, and mapping capabilities.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.2.3
+Imports:
+    R6,
+    dplyr,
+    tidyr,
+    terra,
+    lubridate,
+    glue,
+    stringr,
+    ncdf4,
+    pbapply,
+    scales,
+    plotly,
+    ggplot2,
+    RColorBrewer,
+    countrycode,
+    shiny,
+    shinydashboard,
+    shinycssloaders,
+    shinyWidgets,
+    leaflet,
+    mapview,
+    jsonlite,
+    colorRamps,
+    DT,
+    shinyBS,
+    rcrea,
+    creahelpers
+Remotes:
+    energyandcleanair/rcrea,
+    energyandcleanair/creahelpers
+Suggests: 
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown

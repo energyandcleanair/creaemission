@@ -1,0 +1,83 @@
+# R package development files
+.Rhistory
+.RData
+.Ruserdata
+.Rprofile
+.Renviron
+
+# R package build artifacts
+*.tar.gz
+*.tgz
+*.zip
+*.Rcheck/
+
+# Documentation build files
+doc/
+man/
+vignettes/
+
+# Test files
+tests/
+test_*.R
+*_test.R
+
+# Cache and temporary files
+cache/
+*.cache
+*.tmp
+*.temp
+
+# Output files
+output/
+*.csv
+*.pdf
+*.png
+*.jpg
+*.jpeg
+
+# Git files
+.git/
+.gitignore
+.gitattributes
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+*.out
+
+# RStudio files
+*.Rproj.user/
+
+# Package documentation
+*.Rd
+*.Rmd
+
+# Data files (if they're large and not needed in production)
+# data/
+# inst/data/
+
+# Development scripts
+build_*.R
+test_*.R
+
+# README and documentation
+README.md
+DEPLOY.md
+*.md
+
+# Keep startup script
+!start.sh
+
+# License and project files
+LICENSE
+creaemission.Rproj

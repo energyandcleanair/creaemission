@@ -1,0 +1,68 @@
+#' @title SourceMap
+#' @description Base class for map sources that handle NetCDF files and raster operations
+#'
+#' @importFrom R6 R6Class
+#' @export
+SourceMap <- R6::R6Class(
+  "SourceMap",
+
+  public = list(
+    #' @field data_dir Data directory path
+    data_dir = NULL,
+
+    #' @description Initialize the source
+    #' @param data_dir Data directory path
+    initialize = function(data_dir = NULL) {
+      self$data_dir <- data_dir
+    },
+
+    #' @description Build map data (download and process NetCDF files)
+    #' @param ... Additional arguments passed to specific implementation
+    #' @return Invisibly returns paths to saved files
+    build = function(...) {
+      stop("Method must be implemented by subclass")
+    },
+
+    #' @description List available data combinations
+    #' @return Data frame with available pollutant/sector/year combinations
+    list_available_data = function() {
+      stop("Method must be implemented by subclass")
+    },
+
+    #' @description Get map raster
+    #' @param pollutant Pollutant code
+    #' @param sector Sector code
+    #' @param year Year
+    #' @param iso3 ISO3 country code
+    #' @return Terra raster object or NULL if not available
+    get = function(pollutant, sector, year, iso3) {
+      stop("Method must be implemented by subclass")
+    },
+
+    #' @description Clear all built data
+    #' @return Invisibly returns the number of files removed
+    clear = function() {
+      stop("Method must be implemented by subclass")
+    },
+
+    #' @description Crop raster to country boundaries
+    #' @param raster Terra raster object
+    #' @param iso3 ISO3 country code
+    #' @return Cropped and masked raster
+    crop_to_country = function(raster, iso3) {
+      if (iso3 == "wld") {
+        return(raster)
+      }
+      
+      iso2 <- countrycode::countrycode(iso3, "iso3c", "iso2c")
+      country_boundaries <- terra::vect(creahelpers::get_adm(level = 0, res = "low", iso2s = iso2))
+      
+      if (!is.null(country_boundaries)) {
+        raster <- terra::crop(raster, country_boundaries)
+        raster <- terra::mask(raster, country_boundaries)
+      }
+      
+      return(raster)
+    }
+  )
+) 

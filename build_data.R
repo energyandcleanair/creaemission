@@ -1,38 +1,49 @@
-build_data <- function(min_year=2000) {
+build_data <- function(min_year = 2020,
+                       provincial_years = 2022,
+                       provincial_iso2s=c("ID", "IN", "ZA"),
+                       sources = c("CEDS", "EDGAR"),
+                       build_maps = TRUE) {
+  sources <- toupper(sources)
+  results <- list()
 
-  version <- "v2024_04_01"
-  data_dir <- file.path("data", version)
+  # Build CEDS data if requested
+  if ("CEDS" %in% sources) {
+    message("Building CEDS emissions data...")
+    ceds <- CEDSNational$new()
+    ceds$build(min_year = min_year)
+    results$CEDS <- ceds
 
-  # Data downloaded from https://zenodo.org/records/10904361
+    # Build provincial
+    message("Building CEDS provincial emissions data...")
+    ceds_provincial <- CEDSProvincial$new()
+    ceds_provincial$build(iso2s = provincial_iso2s, years = provincial_years)
 
-  url <- "https://zenodo.org/records/10904361/files/CEDS_v_2024_04_01_detailed.zip?download=1"
-  dir_tmp <- "data/tmp"
-  if (!dir.exists(tmp)) {
-    dir.create(tmp, recursive = TRUE, showWarnings = FALSE)
+    # Build maps if requested
+    if (build_maps) {
+      message("Building CEDS map data...")
+      ceds_provincial$map_source$build(years = provincial_years)
+    }
   }
-  file_zip <- file.path(dir_tmp, "CEDS_v_2024_04_01_detailed.zip")
-  download.file(url, file_zip)
-  unzip(file_zip, exdir = dir_tmp)
 
-  csv_files <- list.files(tools::file_path_sans_ext(file_zip), pattern = ".*\\.csv", full.names = TRUE)
+  # Build EDGAR data if requested
+  if ("EDGAR" %in% sources) {
+    message("Building EDGAR emissions data...")
+    edgar <- EDGARNational$new()
+    edgar$build(min_year = min_year)
+    results$EDGAR <- edgar
 
-  parse_file <- function(file){
-    read_csv(file) %>%
-    tidyr::pivot_longer(cols = -c(country, sector, fuel, units, em), names_to = "year", values_to = "value") %>%
-      mutate(year = as.numeric(gsub("X","", year))) %>%
-      rename(poll=em,
-             iso=country) %>%
-      filter(year >= min_year)
+    # Build provincial
+    message("Building EDGAR provincial emissions data...")
+    edgar_provincial <- EDGARProvincial$new()
+    edgar_provincial$build(iso2s = provincial_iso2s, years = provincial_years)
+
+    # Build maps if requested
+    if (build_maps) {
+      message("Building EDGAR map data...")
+      edgar_provincial$map_source$build(years = provincial_years)
+    }
   }
 
-
-  data <- lapply(csv_files, parse_file) %>%
-    bind_rows()
-
-  # split by year and export
-  data %>%
-    split(.$year) %>%
-    walk(~saveRDS(.x, file.path(data_dir, paste0("ceds_emissions_",.x$year[1], ".rds"))))
-
+  message("All requested emissions data built successfully!")
+  return(invisible(results))
 }
-
