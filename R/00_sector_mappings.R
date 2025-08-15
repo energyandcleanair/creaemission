@@ -19,56 +19,56 @@ CEDS_POLLUTANTS <- c(
 )
 
 #' @export
-CEDS_NATIONAL_SECTORS <- c(
-  "1A1a_Electricity-public" = "Energy",
-  "1A1b_Industry" = "Energy",
-  "1A1c_Other-transformation" = "Energy",
-  "1A2_Manufacturing" = "Industrial",
-  "1A3_Transport" = "Transportation",
-  "1A4a_Commercial-institutional" = "Residential, Commercial, Other",
-  "1A4b_Residential" = "Residential, Commercial, Other",
-  "1A4c_Agriculture-forestry-fishing" = "Agriculture",
-  "1A5_Other-fuel-combustion" = "Energy",
-  "2A1_Cement-production" = "Industrial",
-  "2A2_Lime-production" = "Industrial",
-  "2A3_Glass-production" = "Industrial",
-  "2A4_Other-minerals" = "Industrial",
-  "2B1_Ammonia" = "Industrial",
-  "2B2_Nitric-acid" = "Industrial",
-  "2B3_Adipic-acid" = "Industrial",
-  "2B4_Caprolactam" = "Industrial",
-  "2B5_Carbide" = "Industrial",
-  "2B6_Titanium-dioxide" = "Industrial",
-  "2B7_Soda-ash" = "Industrial",
-  "2B8_Petrochemicals" = "Industrial",
-  "2B9_Other-chemicals" = "Industrial",
-  "2C1_Iron-steel" = "Industrial",
-  "2C2_Non-ferrous-metals" = "Industrial",
-  "2C3_Chemicals" = "Industrial",
-  "2C4_Pulp-paper" = "Industrial",
-  "2C5_Food-beverages" = "Industrial",
-  "2C6_Other-processes" = "Industrial",
-  "2D1_Landfills" = "Waste",
-  "2D2_Wastewater" = "Waste",
-  "2D3_Waste-incineration" = "Waste",
-  "2D4_Other-waste" = "Waste",
-  "2E_Solvents" = "Solvents production and application",
-  "2F_Product-uses" = "Industrial",
-  "2G_Other-product-use" = "Industrial",
-  "3A_Enteric-fermentation" = "Agriculture",
-  "3B_Manure-management" = "Agriculture",
-  "3C_Rice-cultivation" = "Agriculture",
-  "3D_Agricultural-soils" = "Agriculture",
-  "3E_Agricultural-waste-burning" = "Agriculture",
-  "3F_Other-agriculture" = "Agriculture",
-  "4A_Solid-waste-disposal" = "Waste",
-  "4B_Biological-treatment-solid-waste" = "Waste",
-  "4C_Wastewater-handling" = "Waste",
-  "4D_Waste-incineration" = "Waste",
-  "4E_Other-waste" = "Waste",
-  "5A_International-aviation" = "Transportation",
-  "5B_International-shipping" = "International Shipping"
-)
+# CEDS_NATIONAL_SECTORS <- c(
+#   "1A1a_Electricity-public" = "Energy",
+#   "1A1b_Industry" = "Energy",
+#   "1A1c_Other-transformation" = "Energy",
+#   "1A2_Manufacturing" = "Industrial",
+#   "1A3_Transport" = "Transportation",
+#   "1A4a_Commercial-institutional" = "Residential, Commercial, Other",
+#   "1A4b_Residential" = "Residential, Commercial, Other",
+#   "1A4c_Agriculture-forestry-fishing" = "Agriculture",
+#   "1A5_Other-fuel-combustion" = "Energy",
+#   "2A1_Cement-production" = "Industrial",
+#   "2A2_Lime-production" = "Industrial",
+#   "2A3_Glass-production" = "Industrial",
+#   "2A4_Other-minerals" = "Industrial",
+#   "2B1_Ammonia" = "Industrial",
+#   "2B2_Nitric-acid" = "Industrial",
+#   "2B3_Adipic-acid" = "Industrial",
+#   "2B4_Caprolactam" = "Industrial",
+#   "2B5_Carbide" = "Industrial",
+#   "2B6_Titanium-dioxide" = "Industrial",
+#   "2B7_Soda-ash" = "Industrial",
+#   "2B8_Petrochemicals" = "Industrial",
+#   "2B9_Other-chemicals" = "Industrial",
+#   "2C1_Iron-steel" = "Industrial",
+#   "2C2_Non-ferrous-metals" = "Industrial",
+#   "2C3_Chemicals" = "Industrial",
+#   "2C4_Pulp-paper" = "Industrial",
+#   "2C5_Food-beverages" = "Industrial",
+#   "2C6_Other-processes" = "Industrial",
+#   "2D1_Landfills" = "Waste",
+#   "2D2_Wastewater" = "Waste",
+#   "2D3_Waste-incineration" = "Waste",
+#   "2D4_Other-waste" = "Waste",
+#   "2E_Solvents" = "Solvents production and application",
+#   "2F_Product-uses" = "Industrial",
+#   "2G_Other-product-use" = "Industrial",
+#   "3A_Enteric-fermentation" = "Agriculture",
+#   "3B_Manure-management" = "Agriculture",
+#   "3C_Rice-cultivation" = "Agriculture",
+#   "3D_Agricultural-soils" = "Agriculture",
+#   "3E_Agricultural-waste-burning" = "Agriculture",
+#   "3F_Other-agriculture" = "Agriculture",
+#   "4A_Solid-waste-disposal" = "Waste",
+#   "4B_Biological-treatment-solid-waste" = "Waste",
+#   "4C_Wastewater-handling" = "Waste",
+#   "4D_Waste-incineration" = "Waste",
+#   "4E_Other-waste" = "Waste",
+#   "5A_International-aviation" = "Transportation",
+#   "5B_International-shipping" = "International Shipping"
+# )
 
 #' @export
 CEDS_PROVINCIAL_SECTORS <- c(
@@ -84,17 +84,17 @@ CEDS_PROVINCIAL_SECTORS <- c(
 
 # EDGAR Sector Mappings
 #' @export
-EDGAR_NATIONAL_SECTORS <- c(
-  "Energy" = "Energy",
-  "Industry" = "Industry",
-  "Transport" = "Transport",
-  "Residential and other sectors" = "Residential and other sectors",
-  "Agriculture" = "Agriculture",
-  "Waste" = "Waste",
-  "International shipping" = "International shipping",
-  "International aviation" = "International aviation"
-  # "Total" = "Total"
-)
+# EDGAR_NATIONAL_SECTORS <- c(
+#   "Energy" = "Energy",
+#   "Industry" = "Industry",
+#   "Transport" = "Transport",
+#   "Residential and other sectors" = "Residential and other sectors",
+#   "Agriculture" = "Agriculture",
+#   "Waste" = "Waste",
+#   "International shipping" = "International shipping",
+#   "International aviation" = "International aviation"
+#   # "Total" = "Total"
+# )
 
 # EDGAR_POLLUTANTS = c("BC", "CO", "NH3", "NMVOC", "NOX", "OC", "PM10", "PM2.5", "SO2"),
 EDGAR_POLLUTANTS = c(

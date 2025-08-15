@@ -1,6 +1,6 @@
 build_data <- function(min_year = 2000,
-                       provincial_years = 2022,
-                       provincial_iso2s=c("ID", "IN", "ZA"),
+                       provincial_years = seq(2000, 2022),
+                       provincial_iso2s=c("ID", "IN", "ZA", "TH", "CN"),
                        sources = c("CEDS", "EDGAR"),
                        build_maps = TRUE) {
   sources <- toupper(sources)

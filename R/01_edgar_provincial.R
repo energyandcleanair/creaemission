@@ -3,7 +3,7 @@
 #'
 #' @importFrom R6 R6Class
 #' @importFrom dplyr distinct rename filter %>%
-#' @importFrom tidyr pivot_longer
+#' @importFrom tidyr crossing pivot_longer
 #' @importFrom lubridate year floor_date
 #' @importFrom stringr str_extract str_replace
 #' @export
@@ -22,6 +22,9 @@ EDGARProvincial <- R6::R6Class(
 
     #' @field cache_dir Directory for temporary files
     cache_dir = NULL,
+
+    #' @field available_data_cache Cached available data combinations
+    available_data_cache = NULL,
 
     #' @description Create a new EDGARProvincial object
     #' @param version Data version
@@ -103,6 +106,11 @@ EDGARProvincial <- R6::R6Class(
     #' @param pollutant Optional pollutant filter
     #' @return Data frame with available pollutant/sector/year/iso3 combinations
     list_available_data = function(year = NULL, sector = NULL, pollutant = NULL) {
+      # Check cache first - if we have cached data and no filters, return it immediately
+      if (!is.null(self$available_data_cache) && is.null(pollutant) && is.null(year) && is.null(sector)) {
+        return(self$available_data_cache)
+      }
+      
       if (!dir.exists(self$data_dir)) {
         return(data.frame(
           pollutant = character(),
@@ -126,37 +134,61 @@ EDGARProvincial <- R6::R6Class(
         ))
       }
 
-      # Read all files and combine data
-      available_data <- list()
-
-      for (file in rds_files) {
-        tryCatch({
-          data <- readRDS(file)
-          if (nrow(data) > 0) {
-            # Extract unique combinations
-            combinations <- data %>%
-              dplyr::distinct(poll, sector, year, iso3) %>%
-              dplyr::rename(pollutant = poll)
-
-            available_data[[length(available_data) + 1]] <- combinations
-          }
-        }, error = function(e) {
-          # Skip files that can't be read
-          warning(glue::glue("Could not read RDS file {file}: {e$message}"))
-        })
+      # Extract available countries from filenames (much faster than reading all files)
+      # Provincial files are typically named like: edgar_emissions_id.rds, edgar_emissions_cn.rds, etc.
+      # Handle various naming patterns and ensure clean ISO3 codes
+      available_countries <- unique(gsub(".*_emissions_([a-z]{2,3})\\.rds", "\\1", basename(rds_files)))
+      available_countries <- available_countries[available_countries != ""] # Remove any empty matches
+      
+            # Additional cleanup: ensure we have valid ISO3 codes and remove any remaining file extensions
+      available_countries <- gsub("\\.rds$", "", available_countries, ignore.case = TRUE)
+      available_countries <- tolower(available_countries) # Ensure lowercase
+      
+      # Validate that we have clean ISO3 codes (should be 2-3 lowercase letters)
+      available_countries <- available_countries[grepl("^[a-z]{2,3}$", available_countries)]
+      
+      # Debug: show what we extracted
+      if (length(available_countries) > 0) {
+        message("EDGAR provincial: Extracted countries: ", paste(available_countries, collapse = ", "))
       }
-
-      if (length(available_data) == 0) {
-        return(data.frame(
+      
+      # Read only ONE file to get the structure (sectors, pollutants, years are the same across countries)
+      sample_file <- rds_files[1]
+      
+      tryCatch({
+        sample_data <- readRDS(sample_file)
+        
+        if (nrow(sample_data) > 0) {
+          # Extract unique combinations from the sample file
+          base_combinations <- sample_data %>%
+            dplyr::distinct(poll, sector, year) %>%
+            dplyr::rename(pollutant = poll)
+          
+          # Create all combinations by crossing with available countries
+          result <- base_combinations %>%
+            tidyr::crossing(iso3 = available_countries)
+          
+        } else {
+          # Fallback to empty data frame
+          result <- data.frame(
+            pollutant = character(),
+            sector = character(),
+            year = integer(),
+            iso3 = character(),
+            stringsAsFactors = FALSE
+          )
+        }
+      }, error = function(e) {
+        # Fallback to empty data frame if file can't be read
+        warning(glue::glue("Could not read sample RDS file {sample_file}: {e$message}"))
+        result <- data.frame(
           pollutant = character(),
           sector = character(),
           year = integer(),
           iso3 = character(),
           stringsAsFactors = FALSE
-        ))
-      }
-
-      result <- do.call(rbind, available_data)
+        )
+      })
 
       # Apply filters if provided
       if (!is.null(pollutant)) {
@@ -171,7 +203,18 @@ EDGARProvincial <- R6::R6Class(
         result <- result[result$sector %in% sector, ]
       }
 
+      # Cache the result for future calls (only if no filters applied)
+      if (is.null(pollutant) && is.null(year) && is.null(sector)) {
+        self$available_data_cache <- result
+      }
+      
       return(result)
+    },
+
+    #' @description Clear the available data cache
+    clear_cache = function() {
+      self$available_data_cache <- NULL
+      message("EDGAR provincial: Cache cleared")
     },
 
     #' @description Get emissions data

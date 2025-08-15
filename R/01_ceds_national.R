@@ -23,6 +23,9 @@ CEDSNational <- R6::R6Class(
     #' @field cache_dir Directory for temporary files
     cache_dir = NULL,
 
+    #' @field available_data_cache Cached available data combinations
+    available_data_cache = NULL,
+
     #' @description Create a new CEDSNational object
     #' @param version Data version
     #' @param available_years Available years
@@ -72,7 +75,11 @@ CEDSNational <- R6::R6Class(
     #' @param pollutant Optional pollutant filter
     #' @return Data frame with available pollutant/sector/year combinations
     list_available_data = function(year = NULL, sector = NULL, pollutant = NULL) {
-
+      # Check cache first - if we have cached data and no filters, return it immediately
+      if (!is.null(self$available_data_cache) && is.null(pollutant) && is.null(year) && is.null(sector)) {
+        return(self$available_data_cache)
+      }
+      
       # Check by_year directory
       by_year_dir <- file.path(self$data_dir, "by_year")
       if (!dir.exists(by_year_dir)) {
@@ -103,8 +110,10 @@ CEDSNational <- R6::R6Class(
 
       # Read only ONE file to get the structure (sectors, pollutants, iso3 are the same across years)
       sample_file <- rds_files[1]
+      
       tryCatch({
         sample_data <- readRDS(sample_file)
+        
         if (nrow(sample_data) > 0) {
           # Extract unique combinations from the sample file
           base_combinations <- sample_data %>%
@@ -150,7 +159,18 @@ CEDSNational <- R6::R6Class(
         result <- result[result$sector %in% sector, ]
       }
 
+      # Cache the result for future calls (only if no filters applied)
+      if (is.null(pollutant) && is.null(year) && is.null(sector)) {
+        self$available_data_cache <- result
+      }
+      
       return(result)
+    },
+
+    #' @description Clear the available data cache
+    clear_cache = function() {
+      self$available_data_cache <- NULL
+      message("CEDS list_available_data: Cache cleared")
     },
 
     #' @description Get emissions data
