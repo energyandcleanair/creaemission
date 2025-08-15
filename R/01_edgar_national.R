@@ -3,6 +3,7 @@
 #'
 #' @importFrom R6 R6Class
 #' @importFrom dplyr distinct rename filter bind_rows mutate
+#' @importFrom tidyr crossing
 #' @importFrom magrittr %>%
 #' @importFrom countrycode countrycode
 #' @export
@@ -22,6 +23,9 @@ EDGARNational <- R6::R6Class(
 
     #' @field cache_dir Directory for temporary files
     cache_dir = NULL,
+
+    #' @field available_data_cache Cached available data combinations
+    available_data_cache = NULL,
 
     #' @description Create a new EDGARNational object
     #' @param version Data version
@@ -72,9 +76,21 @@ EDGARNational <- R6::R6Class(
     #' @param pollutant Optional pollutant filter
     #' @return Data frame with available pollutant/sector/year combinations
     list_available_data = function(year = NULL, sector = NULL, pollutant = NULL) {
+      start_time <- Sys.time()
+      message("EDGAR list_available_data: Starting...")
+      
+      # Check cache first - if we have cached data and no filters, return it immediately
+      if (!is.null(self$available_data_cache) && is.null(pollutant) && is.null(year) && is.null(sector)) {
+        cache_time <- difftime(Sys.time(), start_time, units = "secs")
+        message("EDGAR list_available_data: Returning cached result in ", round(cache_time, 3), " seconds")
+        return(self$available_data_cache)
+      }
+      
       # Check by_year directory
+      dir_check_start <- Sys.time()
       by_year_dir <- file.path(self$data_dir, "by_year")
       if (!dir.exists(by_year_dir)) {
+        message("EDGAR list_available_data: Directory doesn't exist, returning empty")
         return(data.frame(
           pollutant = character(),
           sector = character(),
@@ -83,11 +99,17 @@ EDGARNational <- R6::R6Class(
           stringsAsFactors = FALSE
         ))
       }
+      dir_check_time <- difftime(Sys.time(), dir_check_start, units = "secs")
+      message("EDGAR list_available_data: Directory check took ", round(dir_check_time, 3), " seconds")
 
-      # Get all RDS files
+      # Get all RDS files and extract years from filenames
+      file_list_start <- Sys.time()
       rds_files <- list.files(by_year_dir, pattern = "\\.rds$", full.names = TRUE)
+      file_list_time <- difftime(Sys.time(), file_list_start, units = "secs")
+      message("EDGAR list_available_data: File listing took ", round(file_list_time, 3), " seconds")
 
       if (length(rds_files) == 0) {
+        message("EDGAR list_available_data: No RDS files found, returning empty")
         return(data.frame(
           pollutant = character(),
           sector = character(),
@@ -97,38 +119,65 @@ EDGARNational <- R6::R6Class(
         ))
       }
 
-      # Read all files and combine data
-      available_data <- list()
+      # Extract years from filenames (much faster than reading all files)
+      year_extract_start <- Sys.time()
+      available_years <- as.integer(gsub("edgar_emissions_(\\d{4})\\.rds", "\\1", basename(rds_files)))
+      year_extract_time <- difftime(Sys.time(), year_extract_start, units = "secs")
+      message("EDGAR list_available_data: Year extraction took ", round(year_extract_time, 3), " seconds")
+      message("EDGAR list_available_data: Found ", length(available_years), " years: ", paste(range(available_years), collapse = "-"))
 
-      for (file in rds_files) {
-        tryCatch({
-          data <- readRDS(file)
-          if (nrow(data) > 0) {
-            # Extract unique combinations
-            combinations <- data %>%
-              dplyr::distinct(poll, sector, year, iso3) %>%
-              dplyr::rename(pollutant = poll) %>%
-              mutate(iso3= tolower(iso3))
-
-            available_data[[length(available_data) + 1]] <- combinations
-          }
-        }, error = function(e) {
-          # Skip files that can't be read
-          warning(glue::glue("Could not read RDS file {file}: {e$message}"))
-        })
-      }
-
-      if (length(available_data) == 0) {
-        return(data.frame(
+      # Read only ONE file to get the structure (sectors, pollutants, iso3 are the same across years)
+      file_read_start <- Sys.time()
+      sample_file <- rds_files[1]
+      message("EDGAR list_available_data: Reading sample file: ", basename(sample_file))
+      
+      tryCatch({
+        sample_data <- readRDS(sample_file)
+        file_read_time <- difftime(Sys.time(), file_read_start, units = "secs")
+        message("EDGAR list_available_data: File read took ", round(file_read_time, 3), " seconds")
+        message("EDGAR list_available_data: Sample data dimensions: ", nrow(sample_data), " x ", ncol(sample_data))
+        
+        if (nrow(sample_data) > 0) {
+          # Extract unique combinations from the sample file
+          distinct_start <- Sys.time()
+          base_combinations <- sample_data %>%
+            dplyr::distinct(poll, sector, iso3) %>%
+            dplyr::rename(pollutant = poll) %>%
+            dplyr::mutate(iso3 = tolower(iso3))
+          distinct_time <- difftime(Sys.time(), distinct_start, units = "secs")
+          message("EDGAR list_available_data: Distinct combinations took ", round(distinct_time, 3), " seconds")
+          message("EDGAR list_available_data: Base combinations: ", nrow(base_combinations))
+          
+          # Create all combinations by crossing with available years
+          crossing_start <- Sys.time()
+          result <- base_combinations %>%
+            tidyr::crossing(year = available_years)
+          crossing_time <- difftime(Sys.time(), crossing_start, units = "secs")
+          message("EDGAR list_available_data: Crossing with years took ", round(crossing_time, 3), " seconds")
+          message("EDGAR list_available_data: Final combinations: ", nrow(result))
+          
+        } else {
+          # Fallback to empty data frame
+          message("EDGAR list_available_data: Sample file is empty")
+          result <- data.frame(
+            pollutant = character(),
+            sector = character(),
+            year = integer(),
+            iso3 = character(),
+            stringsAsFactors = FALSE
+          )
+        }
+      }, error = function(e) {
+        # Fallback to empty data frame if file can't be read
+        warning(glue::glue("Could not read sample RDS file {sample_file}: {e$message}"))
+        result <- data.frame(
           pollutant = character(),
           sector = character(),
           year = integer(),
           iso3 = character(),
           stringsAsFactors = FALSE
-        ))
-      }
-
-      result <- do.call(rbind, available_data)
+        )
+      })
 
       # Apply filters if provided
       if (!is.null(pollutant)) {

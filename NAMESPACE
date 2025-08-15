@@ -16,9 +16,7 @@ export(EDGARProvincial)
 export(EDGARMap)
 
 # Sector mappings
-export(CEDS_NATIONAL_SECTORS)
 export(CEDS_PROVINCIAL_SECTORS)
-export(EDGAR_NATIONAL_SECTORS)
 export(EDGAR_PROVINCIAL_SECTORS)
 
 # Region types
@@ -27,7 +25,6 @@ export(REGIONTYPE_PROVINCIAL)
 export(REGIONTYPES)
 
 # Utility functions
-export(deployShinyApp)
 export(iso3_to_country)
 export(get_data_path)
 export(get_project_root)
