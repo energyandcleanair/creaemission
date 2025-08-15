@@ -3,6 +3,7 @@
 #'
 #' @importFrom R6 R6Class
 #' @importFrom dplyr distinct rename filter bind_rows mutate
+#' @importFrom tidyr crossing
 #' @importFrom magrittr %>%
 #' @importFrom countrycode countrycode
 #' @export
@@ -84,7 +85,7 @@ EDGARNational <- R6::R6Class(
         ))
       }
 
-      # Get all RDS files
+      # Get all RDS files and extract years from filenames
       rds_files <- list.files(by_year_dir, pattern = "\\.rds$", full.names = TRUE)
 
       if (length(rds_files) == 0) {
@@ -97,38 +98,45 @@ EDGARNational <- R6::R6Class(
         ))
       }
 
-      # Read all files and combine data
-      available_data <- list()
+      # Extract years from filenames (much faster than reading all files)
+      available_years <- as.integer(gsub("edgar_emissions_(\\d{4})\\.rds", "\\1", basename(rds_files)))
 
-      for (file in rds_files) {
-        tryCatch({
-          data <- readRDS(file)
-          if (nrow(data) > 0) {
-            # Extract unique combinations
-            combinations <- data %>%
-              dplyr::distinct(poll, sector, year, iso3) %>%
-              dplyr::rename(pollutant = poll) %>%
-              mutate(iso3= tolower(iso3))
-
-            available_data[[length(available_data) + 1]] <- combinations
-          }
-        }, error = function(e) {
-          # Skip files that can't be read
-          warning(glue::glue("Could not read RDS file {file}: {e$message}"))
-        })
-      }
-
-      if (length(available_data) == 0) {
-        return(data.frame(
+      # Read only ONE file to get the structure (sectors, pollutants, iso3 are the same across years)
+      sample_file <- rds_files[1]
+      tryCatch({
+        sample_data <- readRDS(sample_file)
+        if (nrow(sample_data) > 0) {
+          # Extract unique combinations from the sample file
+          base_combinations <- sample_data %>%
+            dplyr::distinct(poll, sector, iso3) %>%
+            dplyr::rename(pollutant = poll) %>%
+            dplyr::mutate(iso3 = tolower(iso3))
+          
+          # Create all combinations by crossing with available years
+          result <- base_combinations %>%
+            tidyr::crossing(year = available_years)
+          
+        } else {
+          # Fallback to empty data frame
+          result <- data.frame(
+            pollutant = character(),
+            sector = character(),
+            year = integer(),
+            iso3 = character(),
+            stringsAsFactors = FALSE
+          )
+        }
+      }, error = function(e) {
+        # Fallback to empty data frame if file can't be read
+        warning(glue::glue("Could not read sample RDS file {sample_file}: {e$message}"))
+        result <- data.frame(
           pollutant = character(),
           sector = character(),
           year = integer(),
           iso3 = character(),
           stringsAsFactors = FALSE
-        ))
-      }
-
-      result <- do.call(rbind, available_data)
+        )
+      })
 
       # Apply filters if provided
       if (!is.null(pollutant)) {
