@@ -1,8 +1,10 @@
 build_data <- function(min_year = 2000,
                        provincial_years = seq(2000, 2022),
+                       map_years = 2022,
                        provincial_iso2s=c("ID", "IN", "ZA", "TH", "CN"),
                        sources = c("CEDS", "EDGAR"),
-                       build_maps = TRUE) {
+                       build_maps = TRUE,
+                       build_provincial = TRUE) {
   sources <- toupper(sources)
   results <- list()
 
@@ -15,15 +17,17 @@ build_data <- function(min_year = 2000,
     ceds$build(min_year = min_year)
     results$CEDS <- ceds
 
-    # Build provincial
-    message("Building CEDS provincial emissions data...")
-    ceds_provincial <- CEDSProvincial$new()
-    ceds_provincial$build(iso2s = provincial_iso2s, years = provincial_years)
+    # Build provincial if requested
+    if (build_provincial) {
+      message("Building CEDS provincial emissions data...")
+      ceds_provincial <- CEDSProvincial$new()
+      ceds_provincial$build(iso2s = provincial_iso2s, years = provincial_years)
 
-    # Build maps if requested
-    if (build_maps) {
-      message("Building CEDS map data...")
-      ceds_provincial$map_source$build(years = provincial_years)
+      # Build maps if requested
+      if (build_maps) {
+        message("Building CEDS map data...")
+        ceds_provincial$map_source$build(years = map_years)
+      }
     }
   }
 
@@ -34,15 +38,17 @@ build_data <- function(min_year = 2000,
     edgar$build(min_year = min_year)
     results$EDGAR <- edgar
 
-    # Build provincial
-    message("Building EDGAR provincial emissions data...")
-    edgar_provincial <- EDGARProvincial$new()
-    edgar_provincial$build(iso2s = provincial_iso2s, years = provincial_years)
+    # Build provincial if requested
+    if (build_provincial) {
+      message("Building EDGAR provincial emissions data...")
+      edgar_provincial <- EDGARProvincial$new()
+      edgar_provincial$build(iso2s = provincial_iso2s, years = provincial_years)
 
-    # Build maps if requested
-    if (build_maps) {
-      message("Building EDGAR map data...")
-      edgar_provincial$map_source$build(years = provincial_years)
+      # Build maps if requested
+      if (build_maps) {
+        message("Building EDGAR map data...")
+        edgar_provincial$map_source$build(years = map_years)
+      }
     }
   }
 

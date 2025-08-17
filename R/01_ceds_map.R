@@ -278,7 +278,7 @@ CEDSMap <- R6::R6Class(
             # Find all layers for this sector (across all 12 months)
             sector_pattern <- paste0("sector=", sector_id, "_")
             sector_layers <- grep(sector_pattern, names(r_kg_m2_yr), value = TRUE)
-            sector_name <- CEDS_PROVINCIAL_SECTORS[[sector_id]]
+            sector_name <- CEDS_MAP_SECTOR_MAPPING[[sector_id]]
 
             stopifnot(length(sector_layers)==12)
 
@@ -324,13 +324,13 @@ CEDSMap <- R6::R6Class(
     #' @return Sector ID or NULL if not found
     get_sector_id = function(sector) {
       # If sector is already a sector ID
-      if (sector %in% names(CEDS_PROVINCIAL_SECTORS)) {
+      if (sector %in% names(CEDS_MAP_SECTOR_MAPPING)) {
         return(sector)
       }
 
       # Try to find sector by name
-      for (id in names(CEDS_PROVINCIAL_SECTORS)) {
-        if (CEDS_PROVINCIAL_SECTORS[[id]] == sector) {
+      for (id in names(CEDS_MAP_SECTOR_MAPPING)) {
+        if (CEDS_MAP_SECTOR_MAPPING[[id]] == sector) {
           return(id)
         }
       }

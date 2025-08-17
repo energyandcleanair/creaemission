@@ -31,8 +31,8 @@ message(glue("{c('==== FILES IN PARENT FOLDER:\n', paste(list.files('..'), colla
 
 # Pollutants are now derived dynamically from available_data
 # No global pollutants variable needed
-color_bys <- c("Country"="region_name", "Sector"="sector", "Fuel"="fuel")
-group_bys <- c("Country"="region_name", "Sector"="sector", "Fuel"="fuel")
+color_bys <- c("Country"="region_name", "Sector" = "sector_group", "Sector - Detailed"="sector", "Fuel"="fuel")
+group_bys <- c("Country"="region_name", "Sector" = "sector_group", "Sector - Detailed"="sector", "Fuel"="fuel")
 
 chart_types <- c("Bar (Horizontal)"="barh",
                  "Timeseries (area)"="area")

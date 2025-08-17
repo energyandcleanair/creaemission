@@ -213,8 +213,14 @@ emissions <- reactive({
       mutate(region_name = iso3_to_country(iso3))
   }
 
+  # Aggregate
+  group_cols <- c(input$group_by, input$color_by, "year", "iso3", "region_name")
   e %>%
-    filter(("all" %in% input$country & iso3 != "world") | iso3 %in% input$country)
+    filter(("all" %in% input$country & iso3 != "world") | iso3 %in% input$country) %>%
+    group_by_at(group_cols) %>%
+    summarise(value = sum(value, na.rm = TRUE)) %>%
+    ungroup()
+
 })
 
 
@@ -254,10 +260,12 @@ output$plot <- renderPlotly({
     stop("Not all units are in kt")
   }
   unit_suffix <- "kt"
-  e <- e %>%
-    group_by_at(c(group_by, color_by, "year")) %>%
-    summarise(value=sum(value, na.rm=T)) %>%
-    ungroup()
+
+  # Remove the second aggregation since we're already handling it in emissions() reactive
+  # e <- e %>%
+  #   group_by_at(c(group_by, color_by, "year")) %>%
+  #   summarise(value=sum(value, na.rm=T)) %>%
+  #   ungroup()
 
 
   if(chart_type=="barh"){
@@ -282,9 +290,26 @@ output$plot <- renderPlotly({
     # getPalette = colorRampPalette(rcrea::pal_crea)
     getPalette = colorRampPalette(brewer.pal(12, "Paired"))
 
+    # Clean and truncate long names for better tooltip display
+    e_plt <- e_plt %>%
+      mutate(
+        # Clean the color names using utility functions
+        color_clean = case_when(
+          color_by == "sector" ~ clean_sector_name(color),
+          color_by == "sector_group" ~ color,  # sector_group names are already clean
+          color_by == "fuel" ~ clean_fuel_name(color),
+          color_by == "region_name" ~ clean_country_name(color),
+          TRUE ~ color
+        ),
+        # Truncate very long names to prevent popup overflow
+        color_display = ifelse(nchar(color_clean) > 40,
+                              paste0(substr(color_clean, 1, 25), "..."),
+                              color_clean)
+      )
+
     plt <- e_plt %>%
       ggplot(aes(value, group)) +
-       geom_bar(aes(fill=reorder(color, value), text=paste(paste0(color), sprintf("%.2f kt", value), sep="\n")), stat="identity") +
+       geom_bar(aes(fill=reorder(color, value),text=paste(paste0(color_display), sprintf("%.2f kt", value), sep="\n")), stat="identity") +
        # geom_text(aes(label=ifelse(value_pct<0.01,"",scales::percent(value_pct, accuracy=.1))), vjust=1, nudge_y = -500, col="white", size=4) +
        rcrea::theme_crea_new() +
        scale_x_continuous(expand = expansion(mult=c(0, 0.1)),
@@ -330,8 +355,9 @@ output$plot <- renderPlotly({
         # Clean the color names using utility functions
         color_clean = case_when(
           color_by == "sector" ~ clean_sector_name(color),
+          color_by == "sector_group" ~ color,  # sector_group names are already clean
           color_by == "fuel" ~ clean_fuel_name(color),
-          color_by == "country" ~ clean_country_name(color),
+          color_by == "region_name" ~ clean_country_name(color),
           TRUE ~ color
         ),
         # Truncate very long names to prevent popup overflow
@@ -340,7 +366,7 @@ output$plot <- renderPlotly({
                               color_clean)
       )
 
-    browser()
+
     plt <- e_plt %>%
       mutate(color = reorder(color, value)) %>%
       ungroup() %>%

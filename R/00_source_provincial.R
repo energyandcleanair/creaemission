@@ -210,9 +210,8 @@ SourceProvincial <- R6::R6Class(
     #' @param vect Province boundaries as Terra vector
     #' @param gridded_data Gridded data information
     #' @param iso2 ISO2 country code
-    #' @param preserve_sector_codes Whether to preserve original sector codes (default: FALSE)
     #' @return Data frame with provincial emissions
-    extract_emissions_from_grid = function(vect, gridded_data, iso2, preserve_sector_codes = FALSE) {
+    extract_emissions_from_grid = function(vect, gridded_data, iso2) {
       stop("Method must be implemented by subclass")
     },
     #' @description Download gridded data for provincial analysis
