@@ -105,7 +105,7 @@ EDGAR_POLLUTANTS = c(
 # Raw sector codes to readable sector names
 EDGAR_NATIONAL_SECTOR_MAPPING <- c(
   "Civil Aviation" = "Civil Aviation",
-  "Glass Production" = "Glass Production", 
+  "Glass Production" = "Glass Production",
   "Main Activity Electricity and Heat Production" = "Power Generation",
   "Manufacturing Industries and Construction" = "Manufacturing & Construction",
   "Non-Specified" = "Non-Specified",
@@ -133,7 +133,9 @@ EDGAR_NATIONAL_SECTOR_MAPPING <- c(
   "Other Product Manufacture and Use" = "Other Product Use",
   "Solid Waste Disposal" = "Solid Waste Disposal",
   "Liming" = "Liming",
-  "Rice cultivations" = "Rice Cultivation"
+  "Rice cultivations" = "Rice Cultivation",
+  "Road Transportation resuspension" = "Road Transport",
+  "Road Transportation no resuspension" = "Road Transport"
 )
 
 # Readable sector names to sector groups
@@ -167,7 +169,10 @@ EDGAR_NATIONAL_SECTOR_GROUP_MAPPING <- c(
   "Other Product Use" = "Industry",
   "Solid Waste Disposal" = "Waste",
   "Liming" = "Agriculture",
-  "Rice Cultivation" = "Agriculture"
+  "Rice Cultivation" = "Agriculture",
+  "Road Transportation resuspension" = "Transport",
+  "Road Transportation no resuspension" = "Transport",
+  "Road Transport" = "Transport"
 )
 
 # =============================================================================
@@ -433,7 +438,7 @@ CEDS_PROVINCIAL_SECTOR_GROUP_MAPPING <- CEDS_NATIONAL_SECTOR_GROUP_MAPPING
 # Numeric sector IDs used by CEDS map class to readable sector names
 CEDS_MAP_SECTOR_MAPPING <- c(
   "0" = "Agriculture",
-  "1" = "Energy", 
+  "1" = "Energy",
   "2" = "Industrial",
   "3" = "Transportation",
   "4" = "Residential, Commercial, Other",
@@ -446,7 +451,7 @@ CEDS_MAP_SECTOR_MAPPING <- c(
 CEDS_MAP_SECTOR_GROUP_MAPPING <- c(
   "Agriculture" = "Agriculture",
   "Energy" = "Power Generation",
-  "Industrial" = "Industry", 
+  "Industrial" = "Industry",
   "Transportation" = "Transport",
   "Residential, Commercial, Other" = "Buildings",
   "Solvents production and application" = "Industry",
@@ -469,7 +474,7 @@ get_sector_name <- function(sector_code, source = "CEDS", type = "national") {
     }
     return(unname(CEDS_MAP_SECTOR_MAPPING[sector_code]))
   }
-  
+
   # Determine which mapping to use
   mapping_name <- paste0(toupper(source), "_", toupper(type), "_SECTOR_MAPPING")
 
@@ -506,23 +511,23 @@ get_sector_group <- function(sector_code, source = "CEDS", type = "national") {
     }
     return(unname(CEDS_MAP_SECTOR_GROUP_MAPPING[sector_name]))
   }
-  
+
   # First get the readable sector name
   sector_name <- get_sector_name(sector_code, source, type)
-  
+
   # Then get the sector group
   group_mapping_name <- paste0(toupper(source), "_", toupper(type), "_SECTOR_GROUP_MAPPING")
-  
+
   if (!exists(group_mapping_name)) {
     stop(glue::glue("Unknown source/type combination: {source}/{type}"))
   }
-  
+
   group_mapping <- get(group_mapping_name)
-  
+
   if (!sector_name %in% names(group_mapping)) {
     stop(glue::glue("Unknown sector name '{sector_name}' for {source} {type} data"))
   }
-  
+
   return(unname(group_mapping[sector_name]))
 }
 
