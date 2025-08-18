@@ -7,8 +7,8 @@ test_that("EDGAR national source sum matches raster source sum", {
   test_year <- 2022
 
   # Create source instances
-  edgar_national <- EDGARNational$new()
-  edgar_map <- EDGARMap$new()
+  edgar_national <- EDGARNational$new(data_dir = get_test_data_path("edgar", "national"))
+  edgar_map <- EDGARMap$new(data_dir = get_test_data_path("edgar", "maps"))
 
   # Test 1: Build national data if not available
   if (nrow(edgar_national$list_available_data(pollutant = test_pollutant, year = test_year)) == 0) {
@@ -20,7 +20,6 @@ test_that("EDGAR national source sum matches raster source sum", {
   }
 
   # Test 2: Build map data if not available
-  # edgar_map$clear()  # Clear existing data to ensure fresh build
   if (nrow(edgar_map$list_available_data(pollutant = test_pollutant, year = test_year)) == 0) {
     tryCatch({
       edgar_map$build(pollutants = c(test_pollutant), years = test_year)

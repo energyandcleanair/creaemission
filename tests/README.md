@@ -2,14 +2,6 @@
 
 This directory contains the test suite for the CREA Emission Portal package using the `testthat` framework.
 
-## Test Structure
-
-- `testthat.R` - Main test runner
-- `setup.R` - Test setup and environment configuration
-- `test-edgar-download.R` - Tests for EDGAR data download functionality
-- `test-edgar-validation.R` - Tests for EDGAR provincial vs national validation
-- `test-ceds-validation.R` - Tests for CEDS provincial vs national validation
-- `test-utility-functions.R` - Tests for utility functions
 
 ## Running Tests
 

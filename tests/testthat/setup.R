@@ -21,12 +21,20 @@ cache_folder <- get_cache_folder()
 message(glue::glue("Test setup - Project root: {project_root}"))
 message(glue::glue("Test setup - Cache folder: {cache_folder}"))
 
-# Create test data directory if it doesn't exist
-test_data_dir <- "tests/testthat/test_data"
-if (!dir.exists(test_data_dir)) {
-  dir.create(test_data_dir, recursive = TRUE)
-}
+# Test data directory will be created on-demand by get_test_data_path
 
 # Set up test environment
 Sys.setenv(TESTING = "TRUE")
 Sys.setenv(TESTTHAT = "true")
+
+# Function to get test data path (variadic segments; creates dirs on demand)
+get_test_data_path <- function(...) {
+  path <- file.path(project_root, "tests", "testthat", "test_data", ...)
+  if (!dir.exists(path)) {
+    dir.create(path, recursive = TRUE, showWarnings = FALSE)
+  }
+  path
+}
+
+# Make the function available in test environment
+assign("get_test_data_path", get_test_data_path, envir = .GlobalEnv)

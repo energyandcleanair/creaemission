@@ -38,4 +38,7 @@ test_that("CEDS map source works correctly", {
   values <- terra::values(result)
   expect_true(any(!is.na(values)))
   expect_true(any(values > 0, na.rm = TRUE))
+
+  # Test 8: Check the unit
+  expect_equal(terra::units(result), "kg m-2 yr-1")
 })

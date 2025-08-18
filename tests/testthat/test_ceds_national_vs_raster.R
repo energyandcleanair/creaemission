@@ -6,8 +6,8 @@ test_that("National source sum matches raster source sum", {
   test_year <- 2022
 
   # Create source instances
-  ceds_national <- CEDSNational$new()
-  ceds_map <- CEDSMap$new()
+  ceds_national <- CEDSNational$new(data_dir = get_test_data_path("ceds", "national"))
+  ceds_map <- CEDSMap$new(data_dir = get_test_data_path("ceds", "maps"))
 
   # Test 1: Build national data if not available
   if (nrow(ceds_national$list_available_data(pollutant = test_pollutant, year = test_year)) == 0) {
@@ -16,7 +16,7 @@ test_that("National source sum matches raster source sum", {
 
   # Test 2: Build map data if not available
   if (nrow(ceds_map$list_available_data(pollutant = test_pollutant, year = test_year)) == 0) {
-    ceds_map$build(pollutants = c(test_pollutant), years = test_year)
+    ceds_map$build(pollutants = test_pollutant, years = test_year)
   }
 
   # Test 3: Get national data for all countries
@@ -30,7 +30,7 @@ test_that("National source sum matches raster source sum", {
   national_sum_kt <- sum(national_data$value, na.rm = TRUE)
 
   # Test 4: Get global raster data
-  global_raster <- ceds_map$get(test_pollutant, test_sector_raster, test_year, "wld")
+  global_raster <- ceds_map$get(pollutant=test_pollutant, sector=test_sector_raster, year=test_year, "wld")
   expect_equal(terra::units(global_raster), "kg m-2 yr-1")
 
   if (is.null(global_raster)) {

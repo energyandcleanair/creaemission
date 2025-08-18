@@ -43,7 +43,7 @@ test_that("CEDS provincial source works correctly", {
 
   # Test 7: Check data structure
   expect_true(all(result$poll == test_pollutant))
-  expect_true(all(result$sector == test_sector))
+  expect_true(all(result$sector == map_values(test_sector, CEDS_PROVINCIAL_SECTOR_MAPPING)))
   expect_true(all(result$year == test_year))
   expect_true(all(result$iso3 == "idn"))
 
