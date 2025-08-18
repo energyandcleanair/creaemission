@@ -3,6 +3,12 @@ selected_countries <- reactiveVal(NULL)
 selected_year <- reactiveVal(NULL)
 selected_pollutant <- reactiveVal("NOx")  # Default to NOx
 
+# Performance logging function
+log_performance <- function(operation, start_time, details = "") {
+  elapsed <- Sys.time() - start_time
+  message(glue::glue("PERFORMANCE: {operation} took {round(as.numeric(elapsed), 3)}s {details}"))
+}
+
 # Add this observer to update the stored selection when input changes
 observeEvent(input$country, {
   selected_countries(input$country)
@@ -20,16 +26,26 @@ observeEvent(input$pollutant, {
 current_source <- reactive({
   req(input$source)
   req(input$region_type)
-  get_current_source(input$source, input$region_type)
+
+  start_time <- Sys.time()
+  source_obj <- get_current_source(input$source, input$region_type)
+  log_performance("get_current_source", start_time, glue::glue("source={input$source}, region={input$region_type}"))
+
+  return(source_obj)
 })
 
 # Function to validate and update selections when source changes
 validate_and_update_selections <- function(new_source, new_region_type) {
+  start_time <- Sys.time()
+
   # Get current source object
   source_obj <- current_source()
 
   # Get available data from new source
+  available_data_start <- Sys.time()
   available_data <- source_obj$list_available_data()
+  log_performance("list_available_data", available_data_start, glue::glue("source={new_source}, region={new_region_type}"))
+
   available_years <- sort(unique(available_data$year))
   available_pollutants <- unique(available_data$pollutant)
   available_countries <- available_data %>%
@@ -91,6 +107,8 @@ validate_and_update_selections <- function(new_source, new_region_type) {
   # Update stored selections
   selected_countries(countries_to_use)
 
+  log_performance("validate_and_update_selections", start_time, glue::glue("source={new_source}, region={new_region_type}, years={length(available_years)}, pollutants={length(available_pollutants)}, countries={length(available_countries)}"))
+
   return(list(
     year = year_to_use,
     pollutant = pollutant_to_use,
@@ -100,6 +118,8 @@ validate_and_update_selections <- function(new_source, new_region_type) {
 
 # Observer for source changes
 observeEvent(input$source, {
+  start_time <- Sys.time()
+
   req(input$source)
   req(input$region_type)
 
@@ -110,10 +130,14 @@ observeEvent(input$source, {
   updateSelectInput(session, "year", selected = validated_selections$year)
   updateSelectInput(session, "pollutant", selected = validated_selections$pollutant)
   updateSelectInput(session, "country", selected = validated_selections$countries)
+
+  log_performance("source change observer", start_time, glue::glue("source={input$source}, region={input$region_type}"))
 })
 
 # Observer for region type changes
 observeEvent(input$region_type, {
+  start_time <- Sys.time()
+
   req(input$source)
   req(input$region_type)
 
@@ -124,6 +148,8 @@ observeEvent(input$region_type, {
   updateSelectInput(session, "year", selected = validated_selections$year)
   updateSelectInput(session, "pollutant", selected = validated_selections$pollutant)
   updateSelectInput(session, "country", selected = validated_selections$countries)
+
+  log_performance("region_type change observer", start_time, glue::glue("source={input$source}, region={input$region_type}"))
 })
 
 # Download Handlers ----------------------------------
@@ -133,7 +159,12 @@ output$download_csv <- downloadHandler(
     paste("emissions.csv", sep = "")
   },
   content = function(file) {
-    write.csv(emissions(), file, row.names = FALSE)
+    start_time <- Sys.time()
+
+    data_to_write <- emissions()
+    write.csv(data_to_write, file, row.names = FALSE)
+
+    log_performance("CSV download", start_time, glue::glue("rows={nrow(data_to_write)}"))
   }
 )
 
@@ -145,6 +176,8 @@ emissions_raw <- reactive({
   req(input$source)
   req(input$pollutant)
   topn <- input$topn
+
+  start_time <- Sys.time()
 
   # Get current source object
   source_obj <- current_source()
@@ -166,11 +199,17 @@ emissions_raw <- reactive({
   iso3s <- input$country
   if(!is.null(iso3s) & ("all" %in% iso3s)){
     # Get latest year from available data
+    available_data_start <- Sys.time()
     available_data <- source_obj$list_available_data()
+    log_performance("list_available_data (for top N)", available_data_start, "getting latest year data")
+
     latest_year <- max(available_data$year)
 
     # Get top N countries for the latest year
+    latest_data_start <- Sys.time()
     latest_data <- source_obj$get(year = latest_year, pollutant = input$pollutant)
+    log_performance("get latest year data", latest_data_start, glue::glue("year={latest_year}, pollutant={input$pollutant}"))
+
     if (!is.null(latest_data) && nrow(latest_data) > 0) {
       iso3s_top_n <- latest_data %>%
         group_by(iso3) %>%
@@ -187,22 +226,27 @@ emissions_raw <- reactive({
   }
 
   # Get emissions data from source
+  emissions_data_start <- Sys.time()
   emissions_data <- source_obj$get(
     year = years,
     iso3 = iso3s,
     pollutant = input$pollutant,
   )
+  log_performance("get emissions data", emissions_data_start, glue::glue("years={paste(years, collapse=',')}, iso3s={paste(iso3s, collapse=',')}, pollutant={input$pollutant}"))
 
   # Return NULL if no data available
   if (is.null(emissions_data) || nrow(emissions_data) == 0) {
     return(NULL)
   }
 
+  log_performance("emissions_raw total", start_time, glue::glue("returned {nrow(emissions_data)} rows"))
   return(emissions_data)
 })
 
 
 emissions <- reactive({
+  start_time <- Sys.time()
+
   req(input$country)
   req(input$chart_type)
   req(emissions_raw())
@@ -217,12 +261,15 @@ emissions <- reactive({
 
   # Aggregate
   group_cols <- c(input$group_by, input$color_by, "year", "region_name")
-  e %>%
+  e <- e %>%
     filter(("all" %in% input$country & iso3 != "world") | iso3 %in% input$country) %>%
     group_by_at(group_cols) %>%
     summarise(value = sum(value, na.rm = TRUE)) %>%
     ungroup()
 
+  log_performance("emissions processing", start_time, glue::glue("input_rows={nrow(emissions_raw())}, output_rows={nrow(e)}, group_cols={length(group_cols)}"))
+
+  return(e)
 })
 
 
@@ -232,6 +279,8 @@ output$selectTopN <- renderUI({
 })
 
 output$plot <- renderPlotly({
+
+  start_time <- Sys.time()
 
   group_by <- input$group_by
   color_by <- input$color_by
@@ -254,6 +303,7 @@ output$plot <- renderPlotly({
       theme_void() +
       theme(plot.background = element_rect(fill = "white"))
 
+    log_performance("plot rendering (empty)", start_time, "no data available")
     return(ggplotly(empty_plot))
   }
 
@@ -269,6 +319,7 @@ output$plot <- renderPlotly({
   #   summarise(value=sum(value, na.rm=T)) %>%
   #   ungroup()
 
+  plot_creation_start <- Sys.time()
 
   if(chart_type=="barh"){
 
@@ -298,23 +349,20 @@ output$plot <- renderPlotly({
         # Clean the color names using utility functions
         color_clean = case_when(
           color_by == "sector" ~ clean_sector_name(color),
-          color_by == "sector_group" ~ color,  # sector_group names are already clean
           color_by == "fuel" ~ clean_fuel_name(color),
-          color_by == "region_name" ~ clean_country_name(color),
           TRUE ~ color
         ),
         # Truncate very long names to prevent popup overflow
         color_display = ifelse(nchar(color_clean) > 40,
                               paste0(substr(color_clean, 1, 25), "..."),
                               color_clean),
-        # Cheat: add a trailing space to legend labels to avoid cropping in ggplotly
+        # Cheat: add trailing spaces to legend labels to avoid cropping in ggplotly
         color_label = paste0(color_clean, "  ")
       )
 
     plt <- e_plt %>%
       ggplot(aes(value, group)) +
        geom_bar(aes(fill=reorder(color_label, value), text=paste(paste0(color_display), sprintf("%.2f kt", value), sep="\n")), stat="identity") +
-       # geom_text(aes(label=ifelse(value_pct<0.01,"",scales::percent(value_pct, accuracy=.1))), vjust=1, nudge_y = -500, col="white", size=4) +
        rcrea::theme_crea_new() +
        scale_x_continuous(expand = expansion(mult=c(0, 0.1)),
                            labels = scales::comma_format(suffix=unit_suffix)) +
@@ -359,17 +407,15 @@ output$plot <- renderPlotly({
         # Clean the color names using utility functions
         color_clean = case_when(
           color_by == "sector" ~ clean_sector_name(color),
-          color_by == "sector_group" ~ color,  # sector_group names are already clean
           color_by == "fuel" ~ clean_fuel_name(color),
-          color_by == "region_name" ~ clean_country_name(color),
           TRUE ~ color
         ),
         # Truncate very long names to prevent popup overflow
         color_display = ifelse(nchar(color_clean) > 40,
                               paste0(substr(color_clean, 1, 25), "..."),
                               color_clean),
-        # Cheat: add a trailing space to legend labels to avoid cropping in ggplotly
-        color_label = paste0(color_clean, " ")
+        # Cheat: add trailing spaces to legend labels to avoid cropping in ggplotly
+        color_label = paste0(color_clean, "  ")
       )
 
 
@@ -390,12 +436,15 @@ output$plot <- renderPlotly({
 
   }
 
+  log_performance("ggplot creation", plot_creation_start, glue::glue("chart_type={chart_type}"))
+
   reverse_legend_labels <- function(plotly_plot) {
     n_labels <- length(plotly_plot$x$data)
     plotly_plot$x$data[1:n_labels] <- plotly_plot$x$data[n_labels:1]
     plotly_plot
   }
 
+  plotly_start <- Sys.time()
   plotly_plot <- if(chart_type == "barh") {
     ggplotly(plt, tooltip="text") %>%
       reverse_legend_labels()
@@ -418,6 +467,9 @@ output$plot <- renderPlotly({
       )
   }
 
+  log_performance("plotly conversion", plotly_start, glue::glue("chart_type={chart_type}"))
+  log_performance("plot rendering total", start_time, glue::glue("chart_type={chart_type}, rows={nrow(e)}"))
+
   return(plotly_plot)
 
 })
@@ -432,7 +484,10 @@ output$selectYear <- renderUI({
   source_obj <- current_source()
 
   # Get available years from actual data
+  available_data_start <- Sys.time()
   available_data <- source_obj$list_available_data()
+  log_performance("list_available_data (year UI)", available_data_start, "getting years for UI")
+
   years <- sort(unique(available_data$year))
 
   if(input$chart_type == 'barh'){
@@ -469,7 +524,10 @@ output$selectCountry <- renderUI({
 
   if(input$region_type==REGIONTYPE_NATIONAL){
     # Get countries from source
+    available_data_start <- Sys.time()
     available_data <- source_obj$list_available_data()
+    log_performance("list_available_data (country UI)", available_data_start, "getting countries for UI")
+
     countries <- available_data %>%
       distinct(iso3) %>%
       mutate(country = iso3_to_country(iso3)) %>%
@@ -497,7 +555,10 @@ output$selectCountry <- renderUI({
     selectInput('country', 'Country', choices = countries, multiple=multiple, selected=selected)
   } else {
     # Get provincial countries from source
+    available_data_start <- Sys.time()
     available_data <- source_obj$list_available_data()
+    log_performance("list_available_data (province UI)", available_data_start, "getting provinces for UI")
+
     countries <- available_data %>%
       distinct(iso3) %>%
       mutate(country = iso3_to_country(iso3)) %>%
@@ -523,50 +584,6 @@ output$selectCountry <- renderUI({
 })
 
 
-
-clean_fuel_name <- function(x){
-  gsub("_", " ", tolower(x)) %>%
-  stringr::str_to_sentence()
-}
-
-
-clean_sector_name <- function(x) {
-  # Extract sector_id if it exists at the start (either in brackets or before underscore)
-  sector_ids <- str_extract(x, "^\\[([^\\]]+)\\]|^[^_]+")
-
-  # If sector_id is in brackets, extract just the ID part
-  sector_ids <- ifelse(!is.na(sector_ids) & str_detect(sector_ids, "^\\["),
-                      str_extract(sector_ids, "[^\\[\\]]+"),
-                      sector_ids)
-
-  # Clean the name part
-  cleaned <- x %>%
-    # Remove sector_id from the beginning (either in brackets or with underscore)
-    str_remove(paste0("^\\[", sector_ids, "\\]\\s*|^", sector_ids, "_")) %>%
-    # Replace "Industrial" with "Industry"
-    str_replace_all("Industrial", "Industry") %>%
-    # Replace separators with spaces
-    str_replace_all("[-_]", " ") %>%
-    # Remove "Sector" text
-    str_remove(" Sector$") %>%
-    # Capitalize first letter
-    str_to_sentence() %>%
-    # Remove leading/trailing whitespace
-    str_trim()
-
-  # Add sector_id in brackets if it exists and is different from the full name
-  ifelse(!is.na(sector_ids) & sector_ids != x,
-         str_c(cleaned, " [", sector_ids, "]"),
-         cleaned)
-}
-
-
-clean_country_name <- function(x){
-  # replace NA with International
-  x[is.na(x)] <- "International"
-  x
-}
-
 output$selectPollutant <- renderUI({
   req(current_source())
 
@@ -574,7 +591,10 @@ output$selectPollutant <- renderUI({
   source_obj <- current_source()
 
   # Get available pollutants from source
+  available_data_start <- Sys.time()
   available_data <- source_obj$list_available_data()
+  log_performance("list_available_data (pollutant UI)", available_data_start, "getting pollutants for UI")
+
   available_pollutants <- unique(available_data$pollutant)
 
   # Create choices directly from available pollutants (no global filtering)

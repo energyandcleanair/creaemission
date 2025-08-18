@@ -5,6 +5,12 @@ selected_map_pollutant <- reactiveVal("NOx")  # Default to NOx
 selected_map_sector <- reactiveVal("Energy")  # Default to Energy (Power Generation)
 selected_map_country <- reactiveVal("wld")  # Default to global view
 
+# Performance logging function
+log_performance <- function(operation, start_time, details = "") {
+  elapsed <- Sys.time() - start_time
+  message(glue::glue("PERFORMANCE: {operation} took {round(as.numeric(elapsed), 3)}s {details}"))
+}
+
 # Observers to update stored selections when input changes
 observeEvent(input$map_source, {
   selected_map_source(input$map_source)
@@ -29,20 +35,30 @@ observeEvent(input$map_country, {
 # Reactive for current map source object
 current_map_source <- reactive({
   req(input$map_source)
-  get_current_source(input$map_source, "map")
+  
+  start_time <- Sys.time()
+  source_obj <- get_current_source(input$map_source, "map")
+  log_performance("get_current_map_source", start_time, glue::glue("source={input$map_source}"))
+  
+  return(source_obj)
 })
 
 # Function to validate and update map selections when source changes
 validate_and_update_map_selections <- function(new_source) {
+  start_time <- Sys.time()
+  
   # Get current source object
   source_obj <- current_map_source()
 
   # Get available data from new source
+  available_data_start <- Sys.time()
   available_data <- source_obj$list_available_data()
+  log_performance("list_available_data (map validation)", available_data_start, "getting available data for validation")
   
   # Handle case where no data is available
   if (nrow(available_data) == 0) {
     message("Warning: No data available for map source")
+    log_performance("validate_and_update_map_selections", start_time, "no data available")
     return(list(
       year = NULL,
       pollutant = "NOx",
@@ -115,6 +131,8 @@ validate_and_update_map_selections <- function(new_source) {
   # Update stored selections
   selected_map_country(country_to_use)
 
+  log_performance("validate_and_update_map_selections", start_time, glue::glue("source={new_source}, years={length(available_years)}, pollutants={length(available_pollutants)}, sectors={length(available_sectors)}"))
+
   return(list(
     year = year_to_use,
     pollutant = pollutant_to_use,
@@ -125,6 +143,8 @@ validate_and_update_map_selections <- function(new_source) {
 
 # Observer for map source changes
 observeEvent(input$map_source, {
+  start_time <- Sys.time()
+  
   req(input$map_source)
 
   # Validate and update selections
@@ -135,10 +155,14 @@ observeEvent(input$map_source, {
   updateSelectInput(session, "map_pollutant", selected = validated_selections$pollutant)
   updateSelectInput(session, "map_sector", selected = validated_selections$sector)
   updateSelectInput(session, "map_country", selected = validated_selections$country)
+  
+  log_performance("map source change observer", start_time, glue::glue("source={input$map_source}"))
 })
 
 # Initial setup observer - runs once when the app starts
 observe({
+  start_time <- Sys.time()
+  
   req(input$map_source)
   
   # Only run this once when the source is first available
@@ -154,6 +178,8 @@ observe({
     
     # Debug output
     message(glue::glue("Initial map setup: pollutant={validated_selections$pollutant}, sector={validated_selections$sector}"))
+    
+    log_performance("initial map setup observer", start_time, glue::glue("source={input$map_source}"))
   }
 })
 
@@ -164,9 +190,12 @@ output$download_map <- downloadHandler(
     paste("emissions.tif", sep = "")
   },
   content = function(file) {
+    start_time <- Sys.time()
+    
     raster <- emissions_raster()
     if (!is.null(raster)) {
       terra::writeRaster(raster, file, overwrite = TRUE)
+      log_performance("raster download", start_time, glue::glue("pixels={terra::ncell(raster)}"))
     }
   }
 )
@@ -186,7 +215,9 @@ output$map_pollutant_select <- renderUI({
   source_obj <- current_map_source()
 
   # Get available pollutants from source
+  available_data_start <- Sys.time()
   available_data <- source_obj$list_available_data()
+  log_performance("list_available_data (map pollutant UI)", available_data_start, "getting pollutants for UI")
   
   # Handle case where no data is available
   if (nrow(available_data) == 0) {
@@ -231,7 +262,9 @@ output$map_year_select <- renderUI({
   source_obj <- current_map_source()
 
   # Get available years from actual data
+  available_data_start <- Sys.time()
   available_data <- source_obj$list_available_data()
+  log_performance("list_available_data (map year UI)", available_data_start, "getting years for UI")
   
   # Handle case where no data is available
   if (nrow(available_data) == 0) {
@@ -264,7 +297,9 @@ output$map_sector_select <- renderUI({
   source_obj <- current_map_source()
 
   # Get available sectors from source
+  available_data_start <- Sys.time()
   available_data <- source_obj$list_available_data()
+  log_performance("list_available_data (map sector UI)", available_data_start, "getting sectors for UI")
   
   # Handle case where no data is available
   if (nrow(available_data) == 0) {
@@ -340,7 +375,7 @@ emissions_raster <- reactive({
     # Get the map source object
     source_obj <- current_map_source()
 
-
+    start_time <- Sys.time()
     # Get the raster from the source
     raster <- source_obj$get(
       pollutant = input$map_pollutant,
@@ -348,6 +383,7 @@ emissions_raster <- reactive({
       year = input$map_year,
       iso3 = input$map_country
     )
+    log_performance("raster_get", start_time, glue::glue("pollutant={input$map_pollutant}, sector={input$map_sector}, year={input$map_year}, country={input$map_country}"))
 
     return(raster)
   }, error = function(e) {
@@ -357,6 +393,8 @@ emissions_raster <- reactive({
 })
 
 output$map <- renderLeaflet({
+  start_time <- Sys.time()
+  
   r <- emissions_raster()
   sector <- input$map_sector
   pollutant <- input$map_pollutant
@@ -432,9 +470,10 @@ output$map <- renderLeaflet({
 
   if (length(emission_values) == 0) {
     # Create empty map if no data
-    leaflet() %>%
+    log_performance("map rendering (empty)", start_time, "no data available")
+    return(leaflet() %>%
       addTiles() %>%
-      setView(lng = default_lng, lat = default_lat, zoom = default_zoom)
+      setView(lng = default_lng, lat = default_lat, zoom = default_zoom))
   } else {
     # Calculate breaks
     saturation <- quantile(emission_values, 0.999, na.rm = TRUE)
@@ -449,12 +488,17 @@ output$map <- renderLeaflet({
     colors <- hcl.colors(15, gsub("REVERSE", "", palette), rev = grepl("REVERSE", palette))
 
     # Create map
+    mapview_start <- Sys.time()
     mapviewOptions(mapview.maxpixels = max_pixels)
     map <- mapview(emission,
                    layer.name = layer_name,
                    at = breaks,
                    col.regions = colors)
-    map@map %>%
-      setView(lng = default_lng, lat = default_lat, zoom = default_zoom)
+    
+    log_performance("mapview creation", mapview_start, glue::glue("pixels={n_pixels}, breaks={length(breaks)}"))
+    log_performance("map rendering total", start_time, glue::glue("pixels={n_pixels}, sector={sector}, pollutant={pollutant}"))
+    
+    return(map@map %>%
+      setView(lng = default_lng, lat = default_lat, zoom = default_zoom))
   }
 })
