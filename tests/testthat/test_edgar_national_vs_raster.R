@@ -20,7 +20,7 @@ test_that("EDGAR national source sum matches raster source sum", {
   }
 
   # Test 2: Build map data if not available
-  edgar_map$clear()  # Clear existing data to ensure fresh build
+  # edgar_map$clear()  # Clear existing data to ensure fresh build
   if (nrow(edgar_map$list_available_data(pollutant = test_pollutant, year = test_year)) == 0) {
     tryCatch({
       edgar_map$build(pollutants = c(test_pollutant), years = test_year)

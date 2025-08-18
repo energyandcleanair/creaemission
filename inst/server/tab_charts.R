@@ -63,9 +63,6 @@ validate_and_update_selections <- function(new_source, new_region_type) {
     selected_pollutant(pollutant_to_use)
   }
 
-  # Debug output
-  message(glue::glue("Charts pollutant validation: current={current_pollutant}, available={paste(available_pollutants, collapse=', ')}, selected={pollutant_to_use}"))
-
   # Validate country selection
   current_countries <- selected_countries()
   if (!is.null(current_countries)) {
@@ -128,26 +125,6 @@ observeEvent(input$region_type, {
   updateSelectInput(session, "pollutant", selected = validated_selections$pollutant)
   updateSelectInput(session, "country", selected = validated_selections$countries)
 })
-
-# # Initial setup observer - runs once when the app starts
-# observe({
-#   req(input$source)
-#   req(input$region_type)
-
-#   # Only run this once when the source and region type are first available
-#   if (is.null(selected_year()) || is.null(selected_pollutant()) || is.null(selected_countries())) {
-#     # Validate and update selections for initial setup
-#     validated_selections <- validate_and_update_selections(input$source, input$region_type)
-
-#     # Update UI inputs with validated selections
-#     updateSelectInput(session, "year", selected = validated_selections$year)
-#     updateSelectInput(session, "pollutant", selected = validated_selections$pollutant)
-#     updateSelectInput(session, "country", selected = validated_selections$countries)
-
-#   }
-# })
-
-
 
 # Download Handlers ----------------------------------
 # Downloadable csv of selected dataset
@@ -240,7 +217,6 @@ emissions <- reactive({
 
   # Aggregate
   group_cols <- c(input$group_by, input$color_by, "year", "region_name")
-  browser()
   e %>%
     filter(("all" %in% input$country & iso3 != "world") | iso3 %in% input$country) %>%
     group_by_at(group_cols) %>%
@@ -330,12 +306,14 @@ output$plot <- renderPlotly({
         # Truncate very long names to prevent popup overflow
         color_display = ifelse(nchar(color_clean) > 40,
                               paste0(substr(color_clean, 1, 25), "..."),
-                              color_clean)
+                              color_clean),
+        # Cheat: add a trailing space to legend labels to avoid cropping in ggplotly
+        color_label = paste0(color_clean, "  ")
       )
 
     plt <- e_plt %>%
       ggplot(aes(value, group)) +
-       geom_bar(aes(fill=reorder(color_clean, value), text=paste(paste0(color_display), sprintf("%.2f kt", value), sep="\n")), stat="identity") +
+       geom_bar(aes(fill=reorder(color_label, value), text=paste(paste0(color_display), sprintf("%.2f kt", value), sep="\n")), stat="identity") +
        # geom_text(aes(label=ifelse(value_pct<0.01,"",scales::percent(value_pct, accuracy=.1))), vjust=1, nudge_y = -500, col="white", size=4) +
        rcrea::theme_crea_new() +
        scale_x_continuous(expand = expansion(mult=c(0, 0.1)),
@@ -389,17 +367,17 @@ output$plot <- renderPlotly({
         # Truncate very long names to prevent popup overflow
         color_display = ifelse(nchar(color_clean) > 40,
                               paste0(substr(color_clean, 1, 25), "..."),
-                              color_clean)
+                              color_clean),
+        # Cheat: add a trailing space to legend labels to avoid cropping in ggplotly
+        color_label = paste0(color_clean, " ")
       )
 
 
     plt <- e_plt %>%
-      mutate(color = reorder(color, value)) %>%
+      mutate(color_label = reorder(color_label, value)) %>%
       ungroup() %>%
       ggplot(aes(year, value)) +
-      geom_area(aes(fill=color,
-
-                    )) +
+      geom_area(aes(fill=color_label)) +
       rcrea::theme_crea_new() +
       scale_y_continuous(expand = expansion(mult=c(0, 0.1)),
                          labels = scales::comma_format(suffix=unit_suffix)) +

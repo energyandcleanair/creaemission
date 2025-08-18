@@ -33,38 +33,15 @@ output$about <- renderUI({
    <h3>About CEDS</h3>
    <p>The Community Emissions Data System (CEDS) produces consistent estimates of global air emissions species over the industrial era (1750-present). CEDS provides a comprehensive, consistent dataset of anthropogenic emissions of greenhouse gases, reactive gases, aerosols, and aerosol precursors from 1750 to present.</p>
    
-   <p>Key features of CEDS:</p>
-   <ul>
-     <li>Annual estimates from 1750 to present</li>
-     <li>Consistent methodology across species, countries, and time</li>
-     <li>Monthly seasonality profiles</li>
-     <li>Detailed sector and fuel divisions</li>
-     <li>Both country-level and gridded (0.1° x 0.1°) data products</li>
-   </ul>
-   
    <p>Learn more about CEDS: <a href='https://github.com/JGCRI/CEDS/' target='_blank'>CEDS GitHub Repository</a></p>
+
+   <p>Gridded emissions are based on the version v_2024_11_25 of <a href='https://rcdtn1.pnl.gov/data/CEDS/CEDS_release-v_2024_11_25/gridded_emissions/' target='_blank'>CEDS Gridded Data</a>.</p>
    
    <h3>About EDGAR</h3>
    <p>The Emissions Database for Global Atmospheric Research (EDGAR) is a global emission inventory covering greenhouse gases and air pollutants from 1970 to present. EDGAR is developed by the European Commission's Joint Research Centre.</p>
    
-   <p>Key features of EDGAR:</p>
-   <ul>
-     <li>Annual estimates from 1970 to present</li>
-     <li>Global coverage with country-level resolution</li>
-     <li>Multiple sectors and activities</li>
-     <li>Gridded data at 0.1° x 0.1° resolution</li>
-     <li>Consistent methodology for all countries</li>
-   </ul>
+   <p>Learn more about EDGAR: <a href='https://edgar.jrc.ec.europa.eu/dataset_ap81' target='_blank'>EDGAR v8.1 Global Air Pollutant Emissions</a></p>
    
-   <p>Learn more about EDGAR: <a href='https://edgar.jrc.ec.europa.eu/dataset_ghg70' target='_blank'>EDGAR v7.0 Greenhouse Gas Emissions</a></p>
-   
-   <h3>Data Sources</h3>
-   <p>This portal uses the following data sources:</p>
-   <ul>
-     <li>CEDS country-level emissions data: <a href='https://zenodo.org/records/10904361' target='_blank'>CEDS v2024.04.01 (Zenodo)</a></li>
-     <li>CEDS gridded emissions data: <a href='https://rcdtn1.pnl.gov/data/CEDS/CEDS_release-v_2024_07_08_metadata_fix/gridded_emissions/bulk_emissions/fine_grids/' target='_blank'>CEDS Gridded Data</a></li>
-     <li>EDGAR emissions data: <a href='https://edgar.jrc.ec.europa.eu/dataset_ghg70' target='_blank'>EDGAR v7.0 Greenhouse Gas Emissions</a></li>
-   </ul>
-  </div>
+
   ")
 })
