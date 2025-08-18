@@ -40,7 +40,16 @@ chart_types <- c("Bar (Horizontal)"="barh",
 
 map_palettes=c("Viridis"="viridis","OrRd"="OrRdREVERSE","Inferno"="inferno")
 
+# Performance logging function
+log_performance <- function(operation, start_time, details = "") {
+  elapsed <- Sys.time() - start_time
+  message(glue::glue("PERFORMANCE: {operation} took {round(as.numeric(elapsed), 3)}s {details}"))
+}
+
 # Global sources list for managing source objects
+message("==== INITIALIZING DATA SOURCES ====")
+sources_start <- Sys.time()
+
 sources <- list(
   national = list(
     ceds = CEDSNational$new(),
@@ -55,6 +64,8 @@ sources <- list(
     edgar = EDGARMap$new()
   )
 )
+
+log_performance("data sources initialization", sources_start, "created 6 source objects")
 
 # Helper function to get current source object
 get_current_source <- function(source_name, region_type) {

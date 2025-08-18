@@ -59,13 +59,13 @@ EDGARNational <- R6::R6Class(
     format_results = function(data) {
       # Call parent format_results first
       data <- super$format_results(data)
-      
+
       # Step 1: Apply SECTOR_MAPPING to create readable sector names
       data$sector <- map_values(data$sector, EDGAR_NATIONAL_SECTOR_MAPPING)
-      
+
       # Step 2: Apply SECTOR_GROUP_MAPPING to create sector groups
       data$sector_group <- map_values(data$sector, EDGAR_NATIONAL_SECTOR_GROUP_MAPPING)
-      
+
       return(data)
     },
 
@@ -279,6 +279,8 @@ EDGARNational <- R6::R6Class(
           }
         }
       }
+
+      self$clear_cache()
 
       message(glue::glue("Cleared {removed_count} EDGAR national data files"))
       return(invisible(removed_count))

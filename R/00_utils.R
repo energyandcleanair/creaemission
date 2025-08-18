@@ -62,16 +62,6 @@ clean_sector_name <- function(x) {
          cleaned)
 }
 
-#' Clean country names by replacing NA with "International"
-#'
-#' @param x Vector of country names
-#' @return Vector of cleaned country names
-#' @export
-clean_country_name <- function(x){
-  # replace NA with International
-  x[is.na(x)] <- "International"
-  x
-}
 
 #' Get the project root directory
 #' @return Path to the project root directory

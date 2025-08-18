@@ -334,6 +334,9 @@ CEDSProvincial <- R6::R6Class(
         self$map_source$clear()
       }
 
+      # Clear cache
+      self$clear_cache()
+
       message(glue::glue("Cleared {removed_count} CEDS provincial data files"))
       return(invisible(removed_count))
     },

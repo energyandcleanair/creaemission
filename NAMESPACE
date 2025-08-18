@@ -27,12 +27,12 @@ export(EDGAR_NATIONAL_SECTOR_GROUP_MAPPING)
 export(EDGAR_PROVINCIAL_SECTOR_MAPPING)
 export(EDGAR_PROVINCIAL_SECTOR_GROUP_MAPPING)
 
+# Pollutant constants
+export(CEDS_POLLUTANTS)
+export(EDGAR_POLLUTANTS)
+
 # Sector utility functions
-export(get_sector_name)
-export(get_sector_group)
-export(validate_sector_code)
-export(get_available_sectors)
-export(get_sector_table)
+# (Removed - functions no longer exist in 00_sector_mappings.R)
 
 # Region types
 export(REGIONTYPE_NATIONAL)

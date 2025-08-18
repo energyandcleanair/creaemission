@@ -305,7 +305,7 @@ EDGARProvincial <- R6::R6Class(
 
       # Clear provincial data files
       if (dir.exists(self$data_dir)) {
-        rds_files <- list.files(self$data_dir, pattern = "\\.rds$", full.names = TRUE, recusive = TRUE)
+        rds_files <- list.files(self$data_dir, pattern = "\\.rds$", full.names = TRUE, recursive = TRUE)
         for (file in rds_files) {
           if (file.remove(file)) {
             removed_count <- removed_count + 1
@@ -317,6 +317,9 @@ EDGARProvincial <- R6::R6Class(
       if (!is.null(self$map_source)) {
         self$map_source$clear()
       }
+
+      # Clear cache
+      self$clear_cache()
 
       message(glue::glue("Cleared {removed_count} EDGAR provincial data files"))
       return(invisible(removed_count))

@@ -58,13 +58,13 @@ CEDSNational <- R6::R6Class(
     format_results = function(data) {
       # Call parent format_results first
       data <- super$format_results(data)
-      
+
       # Step 1: Apply SECTOR_MAPPING to create readable sector names
       data$sector <- map_values(data$sector, CEDS_NATIONAL_SECTOR_MAPPING)
-      
+
       # Step 2: Apply SECTOR_GROUP_MAPPING to create sector groups
       data$sector_group <- map_values(data$sector, CEDS_NATIONAL_SECTOR_GROUP_MAPPING)
-      
+
       return(data)
     },
 
@@ -95,7 +95,7 @@ CEDSNational <- R6::R6Class(
       if (!is.null(self$available_data_cache) && is.null(pollutant) && is.null(year) && is.null(sector)) {
         return(self$available_data_cache)
       }
-      
+
       # Check by_year directory
       by_year_dir <- file.path(self$data_dir, "by_year")
       if (!dir.exists(by_year_dir)) {
@@ -126,20 +126,20 @@ CEDSNational <- R6::R6Class(
 
       # Read only ONE file to get the structure (sectors, pollutants, iso3 are the same across years)
       sample_file <- rds_files[1]
-      
+
       tryCatch({
         sample_data <- readRDS(sample_file)
-        
+
         if (nrow(sample_data) > 0) {
           # Extract unique combinations from the sample file
           base_combinations <- sample_data %>%
             dplyr::distinct(poll, sector, iso3) %>%
             dplyr::rename(pollutant = poll)
-          
+
           # Create all combinations by crossing with available years
           result <- base_combinations %>%
             tidyr::crossing(year = available_years)
-          
+
         } else {
           # Fallback to empty data frame
           result <- data.frame(
@@ -179,7 +179,7 @@ CEDSNational <- R6::R6Class(
       if (is.null(pollutant) && is.null(year) && is.null(sector)) {
         self$available_data_cache <- result
       }
-      
+
       return(result)
     },
 
@@ -264,6 +264,7 @@ CEDSNational <- R6::R6Class(
     #' @description Clear all built data
     #' @return Invisibly returns the number of files removed
     clear = function() {
+
       removed_count <- 0
 
       # Clear by_year files
@@ -288,6 +289,8 @@ CEDSNational <- R6::R6Class(
         }
       }
 
+      self$clear_cache()
+
       message(glue::glue("Cleared {removed_count} CEDS national data files"))
       return(invisible(removed_count))
     },
@@ -298,7 +301,7 @@ CEDSNational <- R6::R6Class(
       # Construct URL and file paths
       url <- glue::glue("{self$base_url}/files/CEDS_{self$version}_detailed.zip?download=1")
       file_zip <- file.path(self$cache_dir, glue::glue("CEDS_{self$version}_detailed.zip"))
-      
+
       # Check if zip file already exists
       if (file.exists(file_zip)) {
         message("CEDS zip file already exists, skipping download")
