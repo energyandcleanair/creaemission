@@ -29,6 +29,7 @@ tabPanel("Charts",
            mainPanel(
              width=10,
              htmlOutput("message", class="msg"),
+             tags$style(HTML('.js-plotly-plot .plot-container, .js-plotly-plot .svg-container, .js-plotly-plot .main-svg { overflow: visible !important; }')),
              plotlyOutput("plot", height='calc(100vh - 80px)') %>% withSpinner(color="#8cc9D0")
            )
          )

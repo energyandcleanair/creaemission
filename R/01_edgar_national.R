@@ -53,6 +53,22 @@ EDGARNational <- R6::R6Class(
       }
     },
 
+    #' @description Format results to standard format with sector and sector_group columns
+    #' @param data Data frame to format
+    #' @return Formatted data frame with sector and sector_group columns added
+    format_results = function(data) {
+      # Call parent format_results first
+      data <- super$format_results(data)
+      
+      # Step 1: Apply SECTOR_MAPPING to create readable sector names
+      data$sector <- map_values(data$sector, EDGAR_NATIONAL_SECTOR_MAPPING)
+      
+      # Step 2: Apply SECTOR_GROUP_MAPPING to create sector groups
+      data$sector_group <- map_values(data$sector, EDGAR_NATIONAL_SECTOR_GROUP_MAPPING)
+      
+      return(data)
+    },
+
     #' @description Build national emissions data
     #' @param min_year Minimum year to include
     #' @return Invisibly returns paths to saved files
@@ -76,21 +92,15 @@ EDGARNational <- R6::R6Class(
     #' @param pollutant Optional pollutant filter
     #' @return Data frame with available pollutant/sector/year combinations
     list_available_data = function(year = NULL, sector = NULL, pollutant = NULL) {
-      start_time <- Sys.time()
-      message("EDGAR list_available_data: Starting...")
-      
+
       # Check cache first - if we have cached data and no filters, return it immediately
       if (!is.null(self$available_data_cache) && is.null(pollutant) && is.null(year) && is.null(sector)) {
-        cache_time <- difftime(Sys.time(), start_time, units = "secs")
-        message("EDGAR list_available_data: Returning cached result in ", round(cache_time, 3), " seconds")
         return(self$available_data_cache)
       }
-      
+
       # Check by_year directory
-      dir_check_start <- Sys.time()
       by_year_dir <- file.path(self$data_dir, "by_year")
       if (!dir.exists(by_year_dir)) {
-        message("EDGAR list_available_data: Directory doesn't exist, returning empty")
         return(data.frame(
           pollutant = character(),
           sector = character(),
@@ -99,17 +109,11 @@ EDGARNational <- R6::R6Class(
           stringsAsFactors = FALSE
         ))
       }
-      dir_check_time <- difftime(Sys.time(), dir_check_start, units = "secs")
-      message("EDGAR list_available_data: Directory check took ", round(dir_check_time, 3), " seconds")
 
       # Get all RDS files and extract years from filenames
-      file_list_start <- Sys.time()
       rds_files <- list.files(by_year_dir, pattern = "\\.rds$", full.names = TRUE)
-      file_list_time <- difftime(Sys.time(), file_list_start, units = "secs")
-      message("EDGAR list_available_data: File listing took ", round(file_list_time, 3), " seconds")
 
       if (length(rds_files) == 0) {
-        message("EDGAR list_available_data: No RDS files found, returning empty")
         return(data.frame(
           pollutant = character(),
           sector = character(),
@@ -120,45 +124,27 @@ EDGARNational <- R6::R6Class(
       }
 
       # Extract years from filenames (much faster than reading all files)
-      year_extract_start <- Sys.time()
       available_years <- as.integer(gsub("edgar_emissions_(\\d{4})\\.rds", "\\1", basename(rds_files)))
-      year_extract_time <- difftime(Sys.time(), year_extract_start, units = "secs")
-      message("EDGAR list_available_data: Year extraction took ", round(year_extract_time, 3), " seconds")
-      message("EDGAR list_available_data: Found ", length(available_years), " years: ", paste(range(available_years), collapse = "-"))
 
       # Read only ONE file to get the structure (sectors, pollutants, iso3 are the same across years)
-      file_read_start <- Sys.time()
       sample_file <- rds_files[1]
-      message("EDGAR list_available_data: Reading sample file: ", basename(sample_file))
-      
+
       tryCatch({
         sample_data <- readRDS(sample_file)
-        file_read_time <- difftime(Sys.time(), file_read_start, units = "secs")
-        message("EDGAR list_available_data: File read took ", round(file_read_time, 3), " seconds")
-        message("EDGAR list_available_data: Sample data dimensions: ", nrow(sample_data), " x ", ncol(sample_data))
-        
+
         if (nrow(sample_data) > 0) {
           # Extract unique combinations from the sample file
-          distinct_start <- Sys.time()
           base_combinations <- sample_data %>%
             dplyr::distinct(poll, sector, iso3) %>%
             dplyr::rename(pollutant = poll) %>%
             dplyr::mutate(iso3 = tolower(iso3))
-          distinct_time <- difftime(Sys.time(), distinct_start, units = "secs")
-          message("EDGAR list_available_data: Distinct combinations took ", round(distinct_time, 3), " seconds")
-          message("EDGAR list_available_data: Base combinations: ", nrow(base_combinations))
-          
+
           # Create all combinations by crossing with available years
-          crossing_start <- Sys.time()
           result <- base_combinations %>%
             tidyr::crossing(year = available_years)
-          crossing_time <- difftime(Sys.time(), crossing_start, units = "secs")
-          message("EDGAR list_available_data: Crossing with years took ", round(crossing_time, 3), " seconds")
-          message("EDGAR list_available_data: Final combinations: ", nrow(result))
-          
+
         } else {
           # Fallback to empty data frame
-          message("EDGAR list_available_data: Sample file is empty")
           result <- data.frame(
             pollutant = character(),
             sector = character(),

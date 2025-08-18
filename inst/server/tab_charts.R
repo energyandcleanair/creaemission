@@ -1,7 +1,7 @@
 # Add this near the top of the file, with other reactive declarations
 selected_countries <- reactiveVal(NULL)
 selected_year <- reactiveVal(NULL)
-selected_pollutant <- reactiveVal(NULL)
+selected_pollutant <- reactiveVal("NOx")  # Default to NOx
 
 # Add this observer to update the stored selection when input changes
 observeEvent(input$country, {
@@ -54,8 +54,12 @@ validate_and_update_selections <- function(new_source, new_region_type) {
     # Keep current pollutant if it's available
     pollutant_to_use <- current_pollutant
   } else {
-    # Use first available pollutant as default
-    pollutant_to_use <- available_pollutants[1]
+    # Use NOx as default if available, otherwise first available pollutant
+    if ("NOx" %in% available_pollutants) {
+      pollutant_to_use <- "NOx"
+    } else {
+      pollutant_to_use <- available_pollutants[1]
+    }
     selected_pollutant(pollutant_to_use)
   }
 
@@ -121,8 +125,6 @@ observeEvent(input$region_type, {
   updateSelectInput(session, "pollutant", selected = validated_selections$pollutant)
   updateSelectInput(session, "country", selected = validated_selections$countries)
 })
-
-
 
 # Download Handlers ----------------------------------
 # Downloadable csv of selected dataset
@@ -213,8 +215,14 @@ emissions <- reactive({
       mutate(region_name = iso3_to_country(iso3))
   }
 
+  # Aggregate
+  group_cols <- c(input$group_by, input$color_by, "year", "region_name")
   e %>%
-    filter(("all" %in% input$country & iso3 != "world") | iso3 %in% input$country)
+    filter(("all" %in% input$country & iso3 != "world") | iso3 %in% input$country) %>%
+    group_by_at(group_cols) %>%
+    summarise(value = sum(value, na.rm = TRUE)) %>%
+    ungroup()
+
 })
 
 
@@ -254,10 +262,12 @@ output$plot <- renderPlotly({
     stop("Not all units are in kt")
   }
   unit_suffix <- "kt"
-  e <- e %>%
-    group_by_at(c(group_by, color_by, "year")) %>%
-    summarise(value=sum(value, na.rm=T)) %>%
-    ungroup()
+
+  # Remove the second aggregation since we're already handling it in emissions() reactive
+  # e <- e %>%
+  #   group_by_at(c(group_by, color_by, "year")) %>%
+  #   summarise(value=sum(value, na.rm=T)) %>%
+  #   ungroup()
 
 
   if(chart_type=="barh"){
@@ -282,9 +292,28 @@ output$plot <- renderPlotly({
     # getPalette = colorRampPalette(rcrea::pal_crea)
     getPalette = colorRampPalette(brewer.pal(12, "Paired"))
 
+    # Clean and truncate long names for better tooltip display
+    e_plt <- e_plt %>%
+      mutate(
+        # Clean the color names using utility functions
+        color_clean = case_when(
+          color_by == "sector" ~ clean_sector_name(color),
+          color_by == "sector_group" ~ color,  # sector_group names are already clean
+          color_by == "fuel" ~ clean_fuel_name(color),
+          color_by == "region_name" ~ clean_country_name(color),
+          TRUE ~ color
+        ),
+        # Truncate very long names to prevent popup overflow
+        color_display = ifelse(nchar(color_clean) > 40,
+                              paste0(substr(color_clean, 1, 25), "..."),
+                              color_clean),
+        # Cheat: add a trailing space to legend labels to avoid cropping in ggplotly
+        color_label = paste0(color_clean, "  ")
+      )
+
     plt <- e_plt %>%
       ggplot(aes(value, group)) +
-       geom_bar(aes(fill=reorder(color, value), text=paste(paste0(color), sprintf("%.2f kt", value), sep="\n")), stat="identity") +
+       geom_bar(aes(fill=reorder(color_label, value), text=paste(paste0(color_display), sprintf("%.2f kt", value), sep="\n")), stat="identity") +
        # geom_text(aes(label=ifelse(value_pct<0.01,"",scales::percent(value_pct, accuracy=.1))), vjust=1, nudge_y = -500, col="white", size=4) +
        rcrea::theme_crea_new() +
        scale_x_continuous(expand = expansion(mult=c(0, 0.1)),
@@ -330,24 +359,25 @@ output$plot <- renderPlotly({
         # Clean the color names using utility functions
         color_clean = case_when(
           color_by == "sector" ~ clean_sector_name(color),
+          color_by == "sector_group" ~ color,  # sector_group names are already clean
           color_by == "fuel" ~ clean_fuel_name(color),
-          color_by == "country" ~ clean_country_name(color),
+          color_by == "region_name" ~ clean_country_name(color),
           TRUE ~ color
         ),
         # Truncate very long names to prevent popup overflow
         color_display = ifelse(nchar(color_clean) > 40,
                               paste0(substr(color_clean, 1, 25), "..."),
-                              color_clean)
+                              color_clean),
+        # Cheat: add a trailing space to legend labels to avoid cropping in ggplotly
+        color_label = paste0(color_clean, " ")
       )
 
-    browser()
+
     plt <- e_plt %>%
-      mutate(color = reorder(color, value)) %>%
+      mutate(color_label = reorder(color_label, value)) %>%
       ungroup() %>%
       ggplot(aes(year, value)) +
-      geom_area(aes(fill=color,
-
-                    )) +
+      geom_area(aes(fill=color_label)) +
       rcrea::theme_crea_new() +
       scale_y_continuous(expand = expansion(mult=c(0, 0.1)),
                          labels = scales::comma_format(suffix=unit_suffix)) +
@@ -370,22 +400,22 @@ output$plot <- renderPlotly({
     ggplotly(plt, tooltip="text") %>%
       reverse_legend_labels()
   } else if(chart_type == "area") {
-    ggplotly(plt) %>%
-      reverse_legend_labels()
 
-      #TODO X unified doens't seem to work properly with geom_area
-      # layout(
-      #   hovermode = "x unified",
-      #   hoverlabel = list(
-      #     bgcolor = "white",
-      #     bordercolor = "black",
-      #     font = list(size = 11),
-      #     # Make popup wider to accommodate longer names
-      #     namelength = -1,  # Show full names
-      #     # Better alignment and spacing
-      #     align = "left"
-      #   )
-      # )
+    ggplotly(plt) %>%
+      reverse_legend_labels() %>%
+      fix_ggplotly_facets(
+        hgap = 0.05,
+        outer = c(0.01, 0.01),
+        vgap = 0.08,
+        vouter = c(0.02, 0.02),
+        recenter_strips = TRUE,
+        adjust_strip_rects = TRUE,
+        y_title_standoff = 15,
+        left_margin = 80,
+        right_margin = 180,
+        strip_position = "top",
+        strip_row_offset = 0.02
+      )
   }
 
   return(plotly_plot)
@@ -556,8 +586,16 @@ output$selectPollutant <- renderUI({
   if(!is.null(prev_selected) && prev_selected %in% available_pollutants_choices) {
     selected <- prev_selected
   } else {
-    selected <- available_pollutants_choices[1]
+    # Use NOx as default if available, otherwise first available pollutant
+    if ("NOx" %in% available_pollutants_choices) {
+      selected <- "NOx"
+    } else {
+      selected <- available_pollutants_choices[1]
+    }
   }
+
+  # Debug output
+  message(glue::glue("Charts pollutant UI: prev={prev_selected}, available={paste(available_pollutants_choices, collapse=', ')}, selected={selected}"))
 
   selectInput("pollutant", "Species:", multiple=F, choices = available_pollutants_choices, selected=selected)
 })

@@ -1,9 +1,9 @@
 # Map-specific reactive values (similar to charts tab)
-selected_map_source <- reactiveVal(NULL)
+selected_map_source <- reactiveVal("CEDS")  # Default to CEDS
 selected_map_year <- reactiveVal(NULL)
-selected_map_pollutant <- reactiveVal(NULL)
-selected_map_sector <- reactiveVal(NULL)
-selected_map_country <- reactiveVal(NULL)
+selected_map_pollutant <- reactiveVal("NOx")  # Default to NOx
+selected_map_sector <- reactiveVal("Energy")  # Default to Energy (Power Generation)
+selected_map_country <- reactiveVal("wld")  # Default to global view
 
 # Observers to update stored selections when input changes
 observeEvent(input$map_source, {
@@ -39,6 +39,18 @@ validate_and_update_map_selections <- function(new_source) {
 
   # Get available data from new source
   available_data <- source_obj$list_available_data()
+  
+  # Handle case where no data is available
+  if (nrow(available_data) == 0) {
+    message("Warning: No data available for map source")
+    return(list(
+      year = NULL,
+      pollutant = "NOx",
+      sector = "Energy", 
+      country = "wld"
+    ))
+  }
+  
   available_years <- sort(unique(available_data$year))
   available_pollutants <- unique(available_data$pollutant)
   available_sectors <- unique(available_data$sector)
@@ -60,10 +72,17 @@ validate_and_update_map_selections <- function(new_source) {
     # Keep current pollutant if it's available
     pollutant_to_use <- current_pollutant
   } else {
-    # Use first available pollutant as default
-    pollutant_to_use <- available_pollutants[1]
+    # Use NOx as default if available, otherwise first available pollutant
+    if ("NOx" %in% available_pollutants) {
+      pollutant_to_use <- "NOx"
+    } else {
+      pollutant_to_use <- available_pollutants[1]
+    }
     selected_map_pollutant(pollutant_to_use)
   }
+  
+  # Debug output
+  message(glue::glue("Map pollutant validation: current={current_pollutant}, available={paste(available_pollutants, collapse=', ')}, selected={pollutant_to_use}"))
 
   # Validate sector selection
   current_sector <- selected_map_sector()
@@ -71,10 +90,17 @@ validate_and_update_map_selections <- function(new_source) {
     # Keep current sector if it's available
     sector_to_use <- current_sector
   } else {
-    # Use first available sector as default
-    sector_to_use <- available_sectors[1]
+    # Use Energy (Power Generation) as default if available, otherwise first available sector
+    if ("Energy" %in% available_sectors) {
+      sector_to_use <- "Energy"
+    } else {
+      sector_to_use <- available_sectors[1]
+    }
     selected_map_sector(sector_to_use)
   }
+  
+  # Debug output
+  message(glue::glue("Map sector validation: current={current_sector}, available={paste(available_sectors, collapse=', ')}, selected={sector_to_use}"))
 
   # For maps, we'll use a predefined list of countries since map sources don't have country info
   # Keep current country selection if it's valid
@@ -111,6 +137,26 @@ observeEvent(input$map_source, {
   updateSelectInput(session, "map_country", selected = validated_selections$country)
 })
 
+# Initial setup observer - runs once when the app starts
+observe({
+  req(input$map_source)
+  
+  # Only run this once when the source is first available
+  if (is.null(selected_map_year())) {
+    # Validate and update selections for initial setup
+    validated_selections <- validate_and_update_map_selections(input$map_source)
+    
+    # Update UI inputs with validated selections
+    updateSelectInput(session, "map_year", selected = validated_selections$year)
+    updateSelectInput(session, "map_pollutant", selected = validated_selections$pollutant)
+    updateSelectInput(session, "map_sector", selected = validated_selections$sector)
+    updateSelectInput(session, "map_country", selected = validated_selections$country)
+    
+    # Debug output
+    message(glue::glue("Initial map setup: pollutant={validated_selections$pollutant}, sector={validated_selections$sector}"))
+  }
+})
+
 # Download Handlers ----------------------------------
 # Downloadable tif of selected dataset
 output$download_map <- downloadHandler(
@@ -141,6 +187,15 @@ output$map_pollutant_select <- renderUI({
 
   # Get available pollutants from source
   available_data <- source_obj$list_available_data()
+  
+  # Handle case where no data is available
+  if (nrow(available_data) == 0) {
+    return(selectInput("map_pollutant", "Pollutant:",
+                       multiple=F,
+                       choices = c("NOx" = "NOx"),
+                       selected = "NOx"))
+  }
+  
   available_pollutants <- unique(available_data$pollutant)
 
   # Create choices directly from available pollutants (no global filtering)
@@ -152,8 +207,16 @@ output$map_pollutant_select <- renderUI({
   if(!is.null(prev_selected) && prev_selected %in% available_pollutants_choices) {
     selected <- prev_selected
   } else {
-    selected <- available_pollutants_choices[1]
+    # Use NOx as default if available, otherwise first available pollutant
+    if ("NOx" %in% available_pollutants_choices) {
+      selected <- "NOx"
+    } else {
+      selected <- available_pollutants_choices[1]
+    }
   }
+  
+  # Debug output
+  message(glue::glue("Map pollutant UI: prev={prev_selected}, available={paste(available_pollutants_choices, collapse=', ')}, selected={selected}"))
 
   selectInput("map_pollutant", "Pollutant:",
               multiple=F,
@@ -169,6 +232,15 @@ output$map_year_select <- renderUI({
 
   # Get available years from actual data
   available_data <- source_obj$list_available_data()
+  
+  # Handle case where no data is available
+  if (nrow(available_data) == 0) {
+    return(selectInput("map_year", "Year:",
+                       multiple=F,
+                       choices = c("2022" = 2022),
+                       selected = 2022))
+  }
+  
   years <- sort(unique(available_data$year))
 
   # Get previously selected year if it's still available
@@ -193,6 +265,15 @@ output$map_sector_select <- renderUI({
 
   # Get available sectors from source
   available_data <- source_obj$list_available_data()
+  
+  # Handle case where no data is available
+  if (nrow(available_data) == 0) {
+    return(selectInput("map_sector", "Sector:",
+                       multiple=F,
+                       choices = c("Energy" = "Energy"),
+                       selected = "Energy"))
+  }
+  
   available_sectors <- unique(available_data$sector)
 
   # Get previously selected sector if it's still available
@@ -200,8 +281,16 @@ output$map_sector_select <- renderUI({
   if(!is.null(prev_selected) && prev_selected %in% available_sectors) {
     selected <- prev_selected
   } else {
-    selected <- available_sectors[1]
+    # Use Energy (Power Generation) as default if available, otherwise first available sector
+    if ("Energy" %in% available_sectors) {
+      selected <- "Energy"
+    } else {
+      selected <- available_sectors[1]
+    }
   }
+  
+  # Debug output
+  message(glue::glue("Map sector UI: prev={prev_selected}, available={paste(available_sectors, collapse=', ')}, selected={selected}"))
 
   selectInput("map_sector", "Sector:",
               multiple=F,
@@ -270,13 +359,69 @@ emissions_raster <- reactive({
 output$map <- renderLeaflet({
   r <- emissions_raster()
   sector <- input$map_sector
+  pollutant <- input$map_pollutant
+  source_name <- input$map_source
   palette <- input$map_palette
 
   req(r)
   req(sector)
+  
+  # Configuration for raster visualization
+  # Adjust these values based on your needs and system performance
+  max_pixels <- 6.48e6    # Maximum pixels for visualization (6,480,000)
+  # This limit accommodates high-resolution global rasters (e.g., 0.1° resolution = 3600x1800 = 6.48M pixels)
+  resample_method <- "bilinear"  # Resampling method: "bilinear", "near", or "cubic"
+  enable_resampling <- FALSE     # Disabled since we're using higher pixel limit
+  
+  # Map display configuration
+  default_zoom <- 2        # Default zoom level (higher = more zoomed in)
+  # Zoom levels: 1=world, 2=continents, 3=countries, 4=regions, 5=cities, 6=districts
+  default_lng <- 0         # Default longitude (centered on prime meridian)
+  default_lat <- 0         # Default latitude (centered on equator)
 
   # Convert to appropriate units for display
+  # Original units are very small (e.g., 10^-6 kg m-2 s-1), so we multiply by 1e6
+  # to make the values more readable on the map (e.g., 1.0 instead of 0.000001)
   emission <- r * 1e6  # Convert to appropriate scale
+  
+  # Check if raster has too many pixels for proper visualization
+  # We've set a high limit (6.48M pixels) to avoid resampling and preserve data quality
+  n_pixels <- terra::ncell(emission)
+  
+  if (n_pixels > max_pixels && enable_resampling) {
+    message(glue::glue("Raster has {n_pixels} pixels, resampling to {max_pixels} for proper visualization"))
+    
+    # Calculate target resolution to get close to max_pixels
+    target_res <- sqrt(n_pixels / max_pixels) * terra::res(emission)[1]
+    
+    # Resample using the configured method to preserve data quality
+    # Alternative methods: "near" (nearest neighbor) or "cubic" (cubic convolution)
+    emission <- terra::resample(emission, 
+                               terra::rast(resolution = target_res, 
+                                          extent = terra::ext(emission),
+                                          crs = terra::crs(emission)),
+                               method = resample_method)
+        
+    # Optional: Show original vs resampled resolution for transparency
+    original_res <- terra::res(r)[1]
+    message(glue::glue("Original resolution: {round(original_res, 6)} degrees"))
+    message(glue::glue("Resampled resolution: {round(target_res, 6)} degrees"))
+  } else if (n_pixels > max_pixels && !enable_resampling) {
+    message(glue::glue("Warning: Raster has {n_pixels} pixels (> {format(max_pixels, scientific = TRUE)})."))
+    message("This exceeds the configured limit. Consider increasing max_pixels if visualization is limited.")
+  } else {
+    message(glue::glue("Raster has {n_pixels} pixels, within visualization limit ({format(max_pixels, scientific = TRUE)})"))
+  }
+  
+  # Get units from the raster object if available
+  raster_units <- terra::units(r)
+  
+  # Create layer name with sector and units
+  # This will appear in the mapview layer control box
+  # Format: "Sector - Pollutant (units)"
+  layer_name <- paste0(sector, " - ", pollutant, " (", raster_units, ")")
+  
+  # Add debug output to show what units are being used
 
   # Apply pole fix for global data (fix for Leaflet display issues)
   # emission <- terra::crop(emission, terra::ext(-180, 180, -89, 89))
@@ -289,20 +434,27 @@ output$map <- renderLeaflet({
     # Create empty map if no data
     leaflet() %>%
       addTiles() %>%
-      setView(lng = 0, lat = 0, zoom = 2)
+      setView(lng = default_lng, lat = default_lat, zoom = default_zoom)
   } else {
     # Calculate breaks
     saturation <- quantile(emission_values, 0.999, na.rm = TRUE)
     breaks <- c(seq(0, saturation, length.out = 14), max(emission_values, na.rm = TRUE))
 
+    # Round breaks to significant digits for cleaner legend display
+    # This removes unnecessary decimal places while preserving meaningful precision
+    legend_digits <- 2  # Change this value to control legend precision (1-3 recommended)
+    breaks <- signif(breaks, digits = legend_digits)
+    
     # Get colors
     colors <- hcl.colors(15, gsub("REVERSE", "", palette), rev = grepl("REVERSE", palette))
 
     # Create map
+    mapviewOptions(mapview.maxpixels = max_pixels)
     map <- mapview(emission,
-                   layer.name = sector,
+                   layer.name = layer_name,
                    at = breaks,
                    col.regions = colors)
-    map@map
+    map@map %>%
+      setView(lng = default_lng, lat = default_lat, zoom = default_zoom)
   }
 })

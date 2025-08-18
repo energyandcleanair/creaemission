@@ -52,6 +52,22 @@ CEDSNational <- R6::R6Class(
       }
     },
 
+    #' @description Format results to standard format with sector and sector_group columns
+    #' @param data Data frame to format
+    #' @return Formatted data frame with sector and sector_group columns added
+    format_results = function(data) {
+      # Call parent format_results first
+      data <- super$format_results(data)
+      
+      # Step 1: Apply SECTOR_MAPPING to create readable sector names
+      data$sector <- map_values(data$sector, CEDS_NATIONAL_SECTOR_MAPPING)
+      
+      # Step 2: Apply SECTOR_GROUP_MAPPING to create sector groups
+      data$sector_group <- map_values(data$sector, CEDS_NATIONAL_SECTOR_GROUP_MAPPING)
+      
+      return(data)
+    },
+
     #' @description Build national emissions data
     #' @param min_year Minimum year to include
     #' @return Invisibly returns paths to saved files
@@ -282,10 +298,15 @@ CEDSNational <- R6::R6Class(
       # Construct URL and file paths
       url <- glue::glue("{self$base_url}/files/CEDS_{self$version}_detailed.zip?download=1")
       file_zip <- file.path(self$cache_dir, glue::glue("CEDS_{self$version}_detailed.zip"))
-
-      # Download and extract
-      message("Downloading CEDS data from ", url)
-      download.file(url, file_zip)
+      
+      # Check if zip file already exists
+      if (file.exists(file_zip)) {
+        message("CEDS zip file already exists, skipping download")
+      } else {
+        # Download and extract
+        message("Downloading CEDS data from ", url)
+        download.file(url, file_zip)
+      }
 
       message("Extracting zip file...")
       unzip(file_zip, exdir = self$cache_dir)

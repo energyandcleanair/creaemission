@@ -57,6 +57,22 @@ EDGARProvincial <- R6::R6Class(
       }
     },
 
+    #' @description Format results to standard format with sector and sector_group columns
+    #' @param data Data frame to format
+    #' @return Formatted data frame with sector and sector_group columns added
+    format_results = function(data) {
+      # Call parent format_results first
+      data <- super$format_results(data)
+
+      # Step 1: Apply SECTOR_MAPPING to create readable sector names
+      data$sector <- map_values(data$sector, EDGAR_PROVINCIAL_SECTOR_MAPPING)
+
+      # Step 2: Apply SECTOR_GROUP_MAPPING to create sector groups
+      data$sector_group <- map_values(data$sector, EDGAR_PROVINCIAL_SECTOR_GROUP_MAPPING)
+
+      return(data)
+    },
+
     #' @description Build provincial emissions data
     #' @param iso2s ISO2 country codes to process
     #' @param years Years to process
@@ -69,7 +85,7 @@ EDGARProvincial <- R6::R6Class(
       iso2s,
       years = NULL,
       pollutants = names(EDGAR_POLLUTANTS),
-      sectors = names(EDGAR_PROVINCIAL_SECTORS),
+      sectors = names(EDGAR_PROVINCIAL_SECTOR_MAPPING),
       level = 1,
       res = "low",
       buffer_into_sea_km = 20) {
@@ -110,7 +126,7 @@ EDGARProvincial <- R6::R6Class(
       if (!is.null(self$available_data_cache) && is.null(pollutant) && is.null(year) && is.null(sector)) {
         return(self$available_data_cache)
       }
-      
+
       if (!dir.exists(self$data_dir)) {
         return(data.frame(
           pollutant = character(),
@@ -139,35 +155,35 @@ EDGARProvincial <- R6::R6Class(
       # Handle various naming patterns and ensure clean ISO3 codes
       available_countries <- unique(gsub(".*_emissions_([a-z]{2,3})\\.rds", "\\1", basename(rds_files)))
       available_countries <- available_countries[available_countries != ""] # Remove any empty matches
-      
+
             # Additional cleanup: ensure we have valid ISO3 codes and remove any remaining file extensions
       available_countries <- gsub("\\.rds$", "", available_countries, ignore.case = TRUE)
       available_countries <- tolower(available_countries) # Ensure lowercase
-      
+
       # Validate that we have clean ISO3 codes (should be 2-3 lowercase letters)
       available_countries <- available_countries[grepl("^[a-z]{2,3}$", available_countries)]
-      
+
       # Debug: show what we extracted
       if (length(available_countries) > 0) {
         message("EDGAR provincial: Extracted countries: ", paste(available_countries, collapse = ", "))
       }
-      
+
       # Read only ONE file to get the structure (sectors, pollutants, years are the same across countries)
       sample_file <- rds_files[1]
-      
+
       tryCatch({
         sample_data <- readRDS(sample_file)
-        
+
         if (nrow(sample_data) > 0) {
           # Extract unique combinations from the sample file
           base_combinations <- sample_data %>%
             dplyr::distinct(poll, sector, year) %>%
             dplyr::rename(pollutant = poll)
-          
+
           # Create all combinations by crossing with available countries
           result <- base_combinations %>%
             tidyr::crossing(iso3 = available_countries)
-          
+
         } else {
           # Fallback to empty data frame
           result <- data.frame(
@@ -207,7 +223,7 @@ EDGARProvincial <- R6::R6Class(
       if (is.null(pollutant) && is.null(year) && is.null(sector)) {
         self$available_data_cache <- result
       }
-      
+
       return(result)
     },
 
@@ -318,7 +334,7 @@ EDGARProvincial <- R6::R6Class(
     extract_provincial_data = function(iso2s,
                                       years = NULL,
                                       pollutants = names(EDGAR_POLLUTANTS),
-                                      sectors = names(EDGAR_PROVINCIAL_SECTORS),
+                                      sectors = names(EDGAR_PROVINCIAL_SECTOR_MAPPING),
                                       level = 1,
                                       res = "low",
                                       buffer_into_sea_km = 20) {
@@ -372,7 +388,7 @@ EDGARProvincial <- R6::R6Class(
       }
 
       if (is.null(sectors)) {
-        sectors <- names(EDGAR_PROVINCIAL_SECTORS)
+        sectors <- names(EDGAR_PROVINCIAL_SECTOR_MAPPING)
       }
 
       dir_netcdf <- file.path(self$cache_dir, "gridded")
@@ -406,9 +422,8 @@ EDGARProvincial <- R6::R6Class(
     #' @param vect Province boundaries as Terra vector
     #' @param gridded_data Gridded data information
     #' @param iso2 ISO2 country code
-    #' @param preserve_sector_codes Whether to preserve original sector codes (default: FALSE)
     #' @return Data frame with provincial emissions
-    extract_emissions_from_grid = function(vect, gridded_data, iso2, preserve_sector_codes = FALSE) {
+    extract_emissions_from_grid = function(vect, gridded_data, iso2) {
       message("Creating terra stack from all EDGAR netCDF files...")
 
       # 1- Create a single stack from all netCDF files
@@ -428,7 +443,8 @@ EDGARProvincial <- R6::R6Class(
           sector <- parts[6]  # RCO
 
           # Read netCDF file
-          r_tonnes <- terra::rast(nc_file)
+          r_tonnes <- terra::rast(nc_file) %>%
+            terra::crop(vect)
 
           # Create meaningful layer name
           layer_name <- paste0(pollutant, "_", sector, "_", year)

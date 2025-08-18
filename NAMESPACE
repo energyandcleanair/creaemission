@@ -16,8 +16,23 @@ export(EDGARProvincial)
 export(EDGARMap)
 
 # Sector mappings
-export(CEDS_PROVINCIAL_SECTORS)
-export(EDGAR_PROVINCIAL_SECTORS)
+export(CEDS_NATIONAL_SECTOR_MAPPING)
+export(CEDS_NATIONAL_SECTOR_GROUP_MAPPING)
+export(CEDS_PROVINCIAL_SECTOR_MAPPING)
+export(CEDS_PROVINCIAL_SECTOR_GROUP_MAPPING)
+export(CEDS_MAP_SECTOR_MAPPING)
+export(CEDS_MAP_SECTOR_GROUP_MAPPING)
+export(EDGAR_NATIONAL_SECTOR_MAPPING)
+export(EDGAR_NATIONAL_SECTOR_GROUP_MAPPING)
+export(EDGAR_PROVINCIAL_SECTOR_MAPPING)
+export(EDGAR_PROVINCIAL_SECTOR_GROUP_MAPPING)
+
+# Sector utility functions
+export(get_sector_name)
+export(get_sector_group)
+export(validate_sector_code)
+export(get_available_sectors)
+export(get_sector_table)
 
 # Region types
 export(REGIONTYPE_NATIONAL)
@@ -42,3 +57,4 @@ importFrom(glue, glue)
 importFrom(stringr, str_extract)
 importFrom(tidyr, pivot_longer)
 importFrom(purrr, map)
+export(fix_ggplotly_facets)

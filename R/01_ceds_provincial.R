@@ -28,7 +28,7 @@ CEDSProvincial <- R6::R6Class(
     #' @param available_years Available years
     #' @param data_dir Data directory path
     initialize = function(version = "2024_11_25",
-                          available_years = 2022:2022,
+                          available_years = 2000:2022,
                           data_dir = NULL) {
       # Use path resolution if data_dir is not provided
       if (is.null(data_dir)) {
@@ -52,6 +52,22 @@ CEDSProvincial <- R6::R6Class(
           dir.create(dir, recursive = TRUE, showWarnings = FALSE)
         }
       }
+    },
+
+    #' @description Format results to standard format with sector and sector_group columns
+    #' @param data Data frame to format
+    #' @return Formatted data frame with sector and sector_group columns added
+    format_results = function(data) {
+      # Call parent format_results first
+      data <- super$format_results(data)
+
+      # Step 1: Apply SECTOR_MAPPING to create readable sector names
+      data$sector <- map_values(data$sector, CEDS_PROVINCIAL_SECTOR_MAPPING)
+
+      # Step 2: Apply SECTOR_GROUP_MAPPING to create sector groups
+      data$sector_group <- map_values(data$sector, CEDS_PROVINCIAL_SECTOR_GROUP_MAPPING)
+
+      return(data)
     },
 
     #' @description Build provincial emissions data
@@ -100,7 +116,7 @@ CEDSProvincial <- R6::R6Class(
       if (!is.null(self$available_data_cache) && is.null(pollutant) && is.null(year) && is.null(sector)) {
         return(self$available_data_cache)
       }
-      
+
       if (!dir.exists(self$data_dir)) {
         return(data.frame(
           pollutant = character(),
@@ -129,35 +145,35 @@ CEDSProvincial <- R6::R6Class(
       # Handle various naming patterns and ensure clean ISO3 codes
       available_countries <- unique(gsub(".*_emissions_([a-z]{2,3})\\.rds", "\\1", basename(rds_files)))
       available_countries <- available_countries[available_countries != ""] # Remove any empty matches
-      
+
             # Additional cleanup: ensure we have valid ISO3 codes and remove any remaining file extensions
       available_countries <- gsub("\\.rds$", "", available_countries, ignore.case = TRUE)
       available_countries <- tolower(available_countries) # Ensure lowercase
-      
+
       # Validate that we have clean ISO3 codes (should be 2-3 lowercase letters)
       available_countries <- available_countries[grepl("^[a-z]{2,3}$", available_countries)]
-      
+
       # Debug: show what we extracted
       if (length(available_countries) > 0) {
         message("CEDS provincial: Extracted countries: ", paste(available_countries, collapse = ", "))
       }
-      
+
       # Read only ONE file to get the structure (sectors, pollutants, years are the same across countries)
       sample_file <- rds_files[1]
-      
+
       tryCatch({
         sample_data <- readRDS(sample_file)
-        
+
         if (nrow(sample_data) > 0) {
           # Extract unique combinations from the sample file
           base_combinations <- sample_data %>%
             dplyr::distinct(poll, sector, year) %>%
             dplyr::rename(pollutant = poll)
-          
+
           # Create all combinations by crossing with available countries
           result <- base_combinations %>%
             tidyr::crossing(iso3 = available_countries)
-          
+
         } else {
           # Fallback to empty data frame
           result <- data.frame(
@@ -197,7 +213,7 @@ CEDSProvincial <- R6::R6Class(
       if (is.null(pollutant) && is.null(year) && is.null(sector)) {
         self$available_data_cache <- result
       }
-      
+
       return(result)
     },
 
@@ -364,106 +380,125 @@ CEDSProvincial <- R6::R6Class(
       ))
     },
 
+    #' @description Process a single netCDF file and return sector yearly data
+    #' @param nc_file Path to netCDF file
+    #' @param vect Province boundaries as Terra vector
+    #' @param sector_id_name Sector ID to name mapping
+    #' @return List with processed raster data and metadata
+    process_nc_file = function(nc_file, vect, sector_id_name) {
+      # Extract pollutant and year from filename
+      filename <- basename(nc_file)
+      parts <- strsplit(filename, "_")[[1]]
+      pollutant <- parts[1]
+      year <- as.numeric(gsub("\\.nc$", "", parts[2]))
+
+      # Read netCDF file
+      nc <- ncdf4::nc_open(nc_file)
+      r_kg_m2_s <- terra::rast(nc_file) %>%
+        terra::crop(vect)
+      stopifnot(unique(terra::units(r_kg_m2_s)) == "kg m-2 s-1")
+
+      # Get sector labels from netCDF attributes
+      # "0: Agriculture; 1: Energy; 2: Industrial; 3: Transportation ...
+      sector_legend <- ncdf4::ncatt_get(nc, "sector", "ids")$value
+      sector_labels <- strsplit(sector_legend, ";")[[1]]
+      sector_ids <- trimws(str_extract(sector_labels, "^[ |0-9]+"))
+      sector_names <- trimws(sub("^[ |0-9]+:\\s*", "", sector_labels))
+
+      # Make sure this matches our mapping
+      stopifnot(
+        all(sector_ids %in% names(sector_id_name)),
+        all(sector_names == unname(sector_id_name[sector_ids]))
+      )
+
+      # Convert from kg m-2 yr-1 to kt yr-1
+      area_r_m2 <- terra::cellSize(r_kg_m2_s, unit="m")
+      r_kt_yr <- r_kg_m2_s * area_r_m2 / 1e6 * 365 * 24 * 3600
+
+      # CEDS files contain monthly data (12 months) for each sector
+      # Layer names are like "NMVOC_em_anthro_sector=0_1" where:
+      # - sector=0 means sector 0
+      # - _1 means month 1 (January)
+      # We need to aggregate monthly data to yearly totals
+
+      # Get layer names to understand the structure
+      layer_names <- names(r_kt_yr)
+
+      # Group layers by sector and aggregate monthly data to yearly
+      sector_yearly_data <- list()
+      file_metadata <- list()
+
+      for (sector_id in sector_ids) {
+        # Find all layers for this sector (across all 12 months)
+        sector_pattern <- paste0("sector=", sector_id, "_")
+        sector_layers <- grep(sector_pattern, layer_names, value = TRUE)
+        sector_name <- sector_id_name[sector_id]
+
+        if (length(sector_layers) > 0) {
+          # Extract the layers for this sector
+          sector_stack <- r_kt_yr[[sector_layers]]
+
+          # Average across all months to get yearly average flux
+          yearly_average <- terra::app(sector_stack, mean, na.rm = TRUE)
+
+          # Create meaningful layer name
+          layer_name <- paste0(pollutant, "_", sector_id, "_", year)
+
+          # Store metadata
+          file_metadata[[layer_name]] <- list(
+            pollutant = pollutant,
+            sector = sector_names[which(sector_ids == sector_id)],
+            sector_id = sector_id,
+            year = year,
+            filename = filename
+          )
+
+          # Set layer name
+          names(yearly_average) <- layer_name
+          sector_yearly_data[[length(sector_yearly_data) + 1]] <- yearly_average
+        }
+      }
+
+      ncdf4::nc_close(nc)
+
+      return(list(
+        raster_data = terra::rast(sector_yearly_data),
+        metadata = file_metadata
+      ))
+    },
+
     #' @description Extract emissions from gridded data for provinces
     #' @param vect Province boundaries as Terra vector
     #' @param gridded_data Gridded data information
     #' @param iso2 ISO2 country code
-    #' @param preserve_sector_codes Whether to preserve original sector codes (default: FALSE)
     #' @return Data frame with provincial emissions
-    extract_emissions_from_grid = function(vect, gridded_data, iso2, preserve_sector_codes = FALSE) {
-      message("Creating terra stack from all CEDS netCDF files...")
+    extract_emissions_from_grid = function(vect, gridded_data, iso2) {
 
-      # 1- Create a single stack from all netCDF files
-      stack_list <- list()
-      file_metadata <- list()
+      message(glue("Creating terra stack from {length(gridded_data$nc_files)} CEDS netCDF files..."))
 
-      for (nc_file in gridded_data$nc_files) {
-        # Extract pollutant and year from filename
-        filename <- basename(nc_file)
-        parts <- strsplit(filename, "_")[[1]]
-        pollutant <- parts[1]
-        year <- as.numeric(gsub("\\.nc$", "", parts[2]))
+      # 1- Create a single stack from all netCDF files using pbapply for progress
+      sector_id_name <- c(
+        "0" = "Agriculture",
+        "1" = "Energy",
+        "2" = "Industrial",
+        "3" = "Transportation",
+        "4" = "Residential, Commercial, Other",
+        "5" = "Solvents production and application",
+        "6" = "Waste",
+        "7" = "International Shipping"
+      )
 
-        # Read netCDF file
-        nc <- ncdf4::nc_open(nc_file)
-        r_kg_m2_s <- terra::rast(nc_file)
-        stopifnot(unique(terra::units(r_kg_m2_s)) == "kg m-2 s-1")
-
-
-        # Get sector labels from netCDF attributes
-        # "0: Agriculture; 1: Energy; 2: Industrial; 3: Transportation ...
-        sector_legend <- ncdf4::ncatt_get(nc, "sector", "ids")$value
-        sector_labels <- strsplit(sector_legend, ";")[[1]]
-        sector_ids <- trimws(str_extract(sector_labels, "^[ |0-9]+"))
-        sector_names <- trimws(sub("^[ |0-9]+:\\s*", "", sector_labels))
-
-        # Make sure this matches our mapping CEDS_PROVINCIAL_SECTORS
-        # These should match CEDS_PROVINCIAL_SECTORS in 01_sector_mappings.R
-        stopifnot(
-          all(sector_ids %in% names(CEDS_PROVINCIAL_SECTORS)),
-          all(sector_names == unname(CEDS_PROVINCIAL_SECTORS[sector_ids]))
-        )
-
-        # Use CEDS provincial sector mapping for consistent naming
-        sector_names <- sapply(sector_ids, function(id) {
-          if (preserve_sector_codes) {
-            # For validation purposes, preserve original codes
-            return(id)
-          } else {
-            # For display purposes, use mapped names
-            return(get_sector_name(id, "CEDS", "provincial"))
-          }
-        })
-
-        # Convert from kg m-2 yr-1 to kt yr-1
-        area_r_m2 <- terra::cellSize(r_kg_m2_s, unit="m")
-        r_kt_yr <- r_kg_m2_s * area_r_m2 / 1e6 * 365 * 24 * 3600
-
-        # CEDS files contain monthly data (12 months) for each sector
-        # Layer names are like "NMVOC_em_anthro_sector=0_1" where:
-        # - sector=0 means sector 0
-        # - _1 means month 1 (January)
-        # We need to aggregate monthly data to yearly totals
-
-        # Get layer names to understand the structure
-        layer_names <- names(r_kt_yr)
-
-        # Group layers by sector and aggregate monthly data to yearly
-        sector_yearly_data <- list()
-
-        for (sector_id in sector_ids) {
-          # Find all layers for this sector (across all 12 months)
-          sector_pattern <- paste0("sector=", sector_id, "_")
-          sector_layers <- grep(sector_pattern, layer_names, value = TRUE)
-
-          if (length(sector_layers) > 0) {
-            # Extract the layers for this sector
-            sector_stack <- r_kt_yr[[sector_layers]]
-
-            # Average across all months to get yearly average flux
-            yearly_average <- terra::app(sector_stack, mean, na.rm = TRUE)
-
-            # Create meaningful layer name
-            layer_name <- paste0(pollutant, "_", sector_id, "_", year)
-
-            # Store metadata
-            file_metadata[[layer_name]] <- list(
-              pollutant = pollutant,
-              sector = sector_names[which(sector_ids == sector_id)],
-              sector_id = sector_id,
-              year = year,
-              filename = filename
-            )
-
-            # Set layer name
-            names(yearly_average) <- layer_name
-            sector_yearly_data[[length(sector_yearly_data) + 1]] <- yearly_average
-          }
+      # Process all netCDF files with progress bar
+      results <- pbapply::pblapply(
+        gridded_data$nc_files,
+        function(nc_file) {
+          self$process_nc_file(nc_file, vect, sector_id_name)
         }
+      )
 
-        stack_list[[length(stack_list) + 1]] <- terra::rast(sector_yearly_data)
-        ncdf4::nc_close(nc)
-      }
+      # Extract rasters and metadata
+      stack_list <- lapply(results, function(x) x$raster_data)
+      file_metadata <- unlist(lapply(results, function(x) x$metadata), recursive = FALSE)
 
       # Combine all rasters into a single stack
       if (length(stack_list) == 0) {

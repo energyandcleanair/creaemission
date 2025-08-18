@@ -22,7 +22,7 @@ EDGARMap <- R6::R6Class(
     #' @param available_years Available years
     #' @param data_dir Data directory path
     initialize = function(version = "v8.1",
-                          available_years = 2022:2022,
+                          available_years = 2000:2022,
                           data_dir = NULL) {
       # Use path resolution if data_dir is not provided
       if (is.null(data_dir)) {
@@ -48,7 +48,7 @@ EDGARMap <- R6::R6Class(
     #' @param years Years to build (default: all available)
     #' @return Invisibly returns list of processed files
     build = function(pollutants =names(EDGAR_POLLUTANTS),
-                    sectors =names(EDGAR_PROVINCIAL_SECTORS),
+                    sectors = names(EDGAR_PROVINCIAL_SECTOR_MAPPING),
                     years = NULL) {
       message("Building EDGAR map data...")
 
@@ -138,7 +138,7 @@ EDGARMap <- R6::R6Class(
                 for (sector_name in sector_names) {
                   available_data[[length(available_data) + 1]] <- data.frame(
                     pollutant = pollutant_mapped,
-                    sector = map_values(sector_name, EDGAR_PROVINCIAL_SECTORS),
+                    sector = map_values(sector_name, EDGAR_PROVINCIAL_SECTOR_MAPPING),
                     year = year_from_file,
                     stringsAsFactors = FALSE
                   )
@@ -212,7 +212,7 @@ EDGARMap <- R6::R6Class(
 
       # Get the sector layer (processed files now have sector layers)
       # Convert sector code back to sector name for NetCDF lookup
-      sector_id <- map_values(sector, setNames(names(EDGAR_PROVINCIAL_SECTORS), unname(EDGAR_PROVINCIAL_SECTORS)))
+      sector_id <- map_values(sector, setNames(names(EDGAR_PROVINCIAL_SECTOR_MAPPING), unname(EDGAR_PROVINCIAL_SECTOR_MAPPING)))
 
       if (sector_id %in% names(nc_stack)) {
         sector_raster <- nc_stack[[sector_id]]
