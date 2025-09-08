@@ -1,6 +1,40 @@
 #' @title EDGARMap
 #' @description EDGAR-specific map source for handling NetCDF files
 #'
+#' ## Processing Pipeline Architecture:
+#'
+#' ### Raw Data Processing (Shared):
+#' 1. `process_raw_edgar_files()` - Core processing logic for raw EDGAR files
+#'    - Unit conversion (tonnes/cell/year → kg m-2 yr-1)
+#'    - Sector identification and file grouping
+#'    - Spatial processing and metadata setup
+#'
+#' ### Output Formats:
+#' 2. `generate_netcdf_files()` - Creates compressed NetCDF files
+#'    - Uses `process_raw_edgar_files()` for core processing
+#'    - Applies shared post-processing (units validation)
+#'    - Saves as NetCDF with compression
+#'
+#' 3. `generate_cog_files()` - Creates Cloud Optimized GeoTIFFs
+#'    - Uses existing `get()` method to load processed data
+#'    - Applies shared post-processing (leaflet extent cropping)
+#'    - Saves as COG with tiling and overviews
+#'
+#' ### Shared Utilities:
+#' - `post_process_raster()` - Common raster post-processing
+#'   - Extent cropping (optional, for leaflet compatibility)
+#'   - Units validation and standardization
+#'
+#' ## EDGAR vs CEDS Differences:
+#' - **Input format**: EDGAR provides annual totals in tonnes/cell, CEDS provides monthly fluxes in kg m-2 s-1
+#' - **Processing**: EDGAR converts area-based totals to flux rates, CEDS aggregates monthly data
+#' - **File structure**: EDGAR has one file per pollutant/sector/year, CEDS has monthly layers per pollutant
+#'
+#' This architecture eliminates code duplication by separating:
+#' - **Common processing logic** (unit conversion, spatial processing)
+#' - **Format-specific output** (NetCDF vs COG)
+#' - **Shared utilities** (post-processing, validation)
+#'
 #' @importFrom R6 R6Class
 #' @export
 EDGARMap <- R6::R6Class(
@@ -46,10 +80,12 @@ EDGARMap <- R6::R6Class(
     #' @param pollutants Pollutants to build (default: all available)
     #' @param sectors Sectors to build (default: all available)
     #' @param years Years to build (default: all available)
+    #' @param formats Output formats: "netcdf", "cog", or both
+    #' @param countries Vector of ISO3 country codes (for COGs)
     #' @return Invisibly returns list of processed files
-    build = function(pollutants =names(EDGAR_POLLUTANTS),
+    build = function(pollutants = names(EDGAR_POLLUTANTS),
                     sectors = names(EDGAR_PROVINCIAL_SECTOR_MAPPING),
-                    years = NULL) {
+                    years = NULL, formats = c("netcdf", "cog"), countries = c("wld")) {
       message("Building EDGAR map data...")
 
       # Use all available years if years is NULL
@@ -75,10 +111,10 @@ EDGARMap <- R6::R6Class(
         }
       }
 
-      # Step 2: Process downloaded files (convert units, etc.)
+      # Step 2: Generate maps in requested formats
       if (length(downloaded_files) > 0) {
-        message("Processing downloaded NetCDF files...")
-        processed_files <- self$process_netcdf_files(downloaded_files)
+        message(paste0("Generating maps in formats: ", paste(formats, collapse=", ")))
+        processed_files <- self$generate_maps(downloaded_files, formats, countries)
         message("EDGAR map data build complete!")
         return(invisible(processed_files))
       } else {
@@ -337,17 +373,55 @@ EDGARMap <- R6::R6Class(
       return(filtered_files)
     },
 
-    #' @description Process downloaded NetCDF files
-    #' @param nc_files List of NetCDF file paths
-    #' @return Invisibly returns processed file paths
-    process_netcdf_files = function(nc_files) {
+    #' @description Generate map files in specified formats
+    #' @param raw_files List of raw NetCDF file paths
+    #' @param formats Vector of output formats: "netcdf", "cog", or both
+    #' @param countries Vector of ISO3 country codes (for COGs)
+    #' @param overwrite Whether to overwrite existing files
+    #' @return Invisibly returns list of output files by format
+    generate_maps = function(raw_files, formats = c("netcdf", "cog"), countries = c("wld"), overwrite = FALSE) {
       # Create data directory if it doesn't exist
       if (!dir.exists(self$data_dir)) {
         dir.create(self$data_dir, recursive = TRUE, showWarnings = FALSE)
       }
 
-      processed_files <- list()
+      output_files <- list()
+      if ("netcdf" %in% formats) output_files$netcdf <- list()
+      if ("cog" %in% formats) output_files$cog <- list()
 
+      # SHARED PROCESSING: Group and process raw files
+      processed_data_groups <- self$process_raw_edgar_files(raw_files)
+
+      # Write in requested formats
+      for (key in names(processed_data_groups)) {
+        processed_data <- processed_data_groups[[key]]
+
+        if (!is.null(processed_data)) {
+          # Write NetCDF format if requested
+          if ("netcdf" %in% formats) {
+            netcdf_file <- self$write_netcdf_format(processed_data, key)
+            if (!is.null(netcdf_file)) {
+              output_files$netcdf[[length(output_files$netcdf) + 1]] <- netcdf_file
+            }
+          }
+
+          # Write COG format if requested
+          if ("cog" %in% formats) {
+            cog_files <- self$write_cog_format(processed_data, key, countries, overwrite)
+            if (length(cog_files) > 0) {
+              output_files$cog <- c(output_files$cog, cog_files)
+            }
+          }
+        }
+      }
+
+      return(invisible(output_files))
+    },
+
+    #' @description Process raw EDGAR files (shared processing logic)
+    #' @param nc_files List of raw NetCDF file paths
+    #' @return List of processed raster stacks grouped by pollutant_year
+    process_raw_edgar_files = function(nc_files) {
       # Group files by pollutant and year
       file_groups <- list()
       for (nc_file in nc_files) {
@@ -376,13 +450,14 @@ EDGARMap <- R6::R6Class(
       }
 
       # Process each pollutant-year combination
+      processed_data_groups <- list()
       for (key in names(file_groups)) {
         parts <- strsplit(key, "_")[[1]]
         pollutant <- parts[1]
         pollutant <- map_values(pollutant, EDGAR_POLLUTANTS)
         year <- parts[2]
 
-        message(glue::glue("Processing {pollutant} for year {year} with {length(file_groups[[key]])} sectors"))
+        message(paste0("Processing ", pollutant, " for year ", year, " with ", length(file_groups[[key]]), " sectors"))
 
         sector_rasters <- list()
 
@@ -399,11 +474,11 @@ EDGARMap <- R6::R6Class(
             if ("emissions" %in% names(nc_stack)) {
               r_tonne_yr <- nc_stack[["emissions"]]
 
-              # Convert from t/cell/year to kg/m2/s to be similar with CEDS
+              # CRITICAL: Convert from t/cell/year to kg/m2/yr to be similar with CEDS (PRESERVE EXACT UNIT CONVERSION)
               area_m2 <- terra::cellSize(r_tonne_yr, unit="m")
               r_kg_m2_yr <- r_tonne_yr * 1000 / area_m2
 
-              # Set the units attribute
+              # CRITICAL: Set the units attribute (PRESERVE EXACT UNITS)
               terra::units(r_kg_m2_yr) <- "kg m-2 yr-1"
 
               # Set layer name to sector
@@ -411,12 +486,12 @@ EDGARMap <- R6::R6Class(
 
               sector_rasters[[sector]] <- r_kg_m2_yr
 
-              message(glue::glue("Processed sector {sector} for {pollutant} {year}"))
+              message(paste0("Processed sector ", sector, " for ", pollutant, " ", year))
             } else {
-              message(glue::glue("No emissions layer found in {basename(nc_file)}"))
+              message(paste0("No emissions layer found in ", basename(nc_file)))
             }
           }, error = function(e) {
-            message(glue::glue("Error processing {basename(nc_file)}: {e$message}"))
+            message(paste0("Error processing ", basename(nc_file), ": ", e$message))
           })
         }
 
@@ -424,20 +499,98 @@ EDGARMap <- R6::R6Class(
         if (length(sector_rasters) > 0) {
           # Combine rasters using terra::rast() with names
           processed_stack <- terra::rast(sector_rasters)
-
-          # Create processed filename: pollutant_year_vversion.nc
-          processed_filename <- paste0(pollutant, "_", year, ".nc")
-          dest_file <- file.path(self$data_dir, processed_filename)
-
-          # Save the processed raster stack with units
-          terra::writeCDF(processed_stack, dest_file, overwrite = TRUE, split = TRUE, compress=9)
-          processed_files[[length(processed_files) + 1]] <- dest_file
-
-          message(glue::glue("Processed and saved combined file: {processed_filename}"))
+          processed_data_groups[[key]] <- list(
+            data = processed_stack,
+            pollutant = pollutant,
+            year = year
+          )
         }
       }
 
-      return(invisible(processed_files))
+      return(processed_data_groups)
+    },
+
+    #' @description Write processed data as NetCDF format
+    #' @param processed_info List with data, pollutant, year
+    #' @param key Pollutant_year key
+    #' @return Path to written NetCDF file or NULL if failed
+    write_netcdf_format = function(processed_info, key) {
+      tryCatch({
+        # Create processed filename: pollutant_year.nc
+        processed_filename <- paste0(processed_info$pollutant, "_", processed_info$year, ".nc")
+        dest_file <- file.path(self$data_dir, processed_filename)
+
+        # Save the processed raster stack with units
+        terra::writeCDF(processed_info$data, dest_file, overwrite = TRUE, split = TRUE, compress=9)
+        message(paste0("Generated NetCDF: ", processed_filename))
+        return(dest_file)
+      }, error = function(e) {
+        message(paste0("Error writing NetCDF for ", key, ": ", e$message))
+        return(NULL)
+      })
+    },
+
+    #' @description Write processed data as COG format
+    #' @param processed_info List with data, pollutant, year
+    #' @param key Pollutant_year key
+    #' @param countries Vector of ISO3 country codes
+    #' @param overwrite Whether to overwrite existing files
+    #' @return Vector of created COG file paths
+    write_cog_format = function(processed_info, key, countries, overwrite) {
+      created_files <- character(0)
+
+      pollutant <- processed_info$pollutant
+      year <- processed_info$year
+      processed_data <- processed_info$data
+
+      # Generate COG for each sector and country combination
+      sector_names <- names(processed_data)
+
+      for (sector_name in sector_names) {
+        sector_raster <- processed_data[[sector_name]]
+
+        for (country in countries) {
+          tryCatch({
+            cog_path <- self$get_cog_path(pollutant, sector_name, year, country)
+
+            # Skip if file exists and not overwriting
+            if (file.exists(cog_path) && !overwrite) {
+              created_files <- c(created_files, cog_path)
+              next
+            }
+
+            # Apply country cropping if needed
+            final_raster <- self$crop_to_country(sector_raster, country)
+
+            # CRITICAL: Apply leaflet-friendly extent (avoid poles) for COG format
+            final_raster <- terra::crop(final_raster, terra::ext(-180, 180, -89, 89))
+
+            # Write as COG with optimizations
+            terra::writeRaster(
+              final_raster,
+              cog_path,
+              overwrite = TRUE,
+              gdal = c("TILED=YES", "COMPRESS=LZW", "OVERVIEW_RESAMPLING=BILINEAR")
+            )
+
+            # Add overviews for different zoom levels
+            system(paste("gdaladdo -r bilinear", shQuote(cog_path), "2 4 8 16 32"),
+                   ignore.stdout = TRUE, ignore.stderr = TRUE)
+
+            created_files <- c(created_files, cog_path)
+
+          }, error = function(e) {
+            message(paste0("Error creating COG for ", pollutant, "_", sector_name, "_", year, "_", country, ": ", e$message))
+          })
+        }
+      }
+
+      if (length(created_files) > 0) {
+        message(paste0("Generated ", length(created_files), " COG files from ", key))
+      }
+
+      return(created_files)
     }
   )
 )
+

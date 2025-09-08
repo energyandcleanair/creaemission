@@ -41,8 +41,11 @@ export(REGIONTYPES)
 
 # Utility functions
 export(iso3_to_country)
+export(clean_fuel_name)
+export(clean_sector_name)
 export(get_data_path)
 export(get_project_root)
+export(get_cache_folder)
 export(map_values)
 
 # Imports

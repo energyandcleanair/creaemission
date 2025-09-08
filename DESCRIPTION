@@ -35,7 +35,8 @@ Imports:
     DT,
     shinyBS,
     rcrea,
-    creahelpers
+    creahelpers,
+    viridisLite
 Remotes:
     energyandcleanair/rcrea,
     energyandcleanair/creahelpers

@@ -1,6 +1,6 @@
 # Deploying CREA Emission Portal to Google Cloud Run
 
-This guide walks you through deploying the CREA Emission Portal Shiny app to Google Cloud Run using the Google Cloud CLI.
+This guide walks you through deploying the CREA Emission Portal (Shiny app + TiTiler server) to Google Cloud Run as a single service using the Google Cloud CLI.
 
 ## Environment Variables
 
@@ -38,6 +38,32 @@ docker logs creaemission
 docker stop creaemission
 docker rm creaemission
 ```
+
+## Run Locally (Single Service)
+
+For local development and testing both the Shiny app and TiTiler server in a single container:
+
+```bash
+# Build the combined image
+docker build -t creaemission .
+
+# Run the container
+docker run -d -p 8080:8080 --name creaemission creaemission
+
+# View logs
+docker logs -f creaemission
+
+# Stop and cleanup
+docker stop creaemission
+docker rm creaemission
+```
+
+This will start a single service accessible at:
+- **Combined Service**: http://localhost:8080
+- **Shiny App**: http://localhost:8080/
+- **TiTiler Server**: http://localhost:8080/titiler/
+
+The TiTiler is accessible via the `/titiler/` path prefix through nginx reverse proxy.
 
 ## Setup Steps
 
@@ -96,6 +122,31 @@ gcloud run deploy $SERVICE_NAME \
   --min-instances 0 \
   --max-instances 2
 ```
+
+### Single Service Deployment
+
+For deploying both services in a single Cloud Run service:
+
+```bash
+# Deploy the combined service
+gcloud run deploy $SERVICE_NAME \
+  --source . \
+  --platform managed \
+  --region $REGION \
+  --project $PROJECT_ID \
+  --allow-unauthenticated \
+  --port 8080 \
+  --memory 4Gi \
+  --cpu 2 \
+  --timeout 3600 \
+  --min-instances 0 \
+  --max-instances 2 \
+  --set-env-vars="R_CONFIG_ACTIVE=production,TITILER_PORT=8000"
+```
+
+This single service will provide:
+- **Shiny App**: `https://[SERVICE_URL]/`
+- **TiTiler API**: `https://[SERVICE_URL]/titiler/`
 
 ## Custom Domain Setup
 

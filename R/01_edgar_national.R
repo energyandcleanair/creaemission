@@ -253,6 +253,12 @@ EDGARNational <- R6::R6Class(
       return(NULL)
     },
 
+    #' @description Clear the available data cache
+    clear_cache = function() {
+      self$available_data_cache <- NULL
+      message("CEDS list_available_data: Cache cleared")
+    },
+
     #' @description Clear all built data
     #' @return Invisibly returns the number of files removed
     clear = function() {
