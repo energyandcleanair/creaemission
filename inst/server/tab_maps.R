@@ -567,13 +567,51 @@ observe({
     # Fallback to direct raster rendering
     message(if(file.exists(cog_path)) "⚠️ TiTiler not available" else "📁 COG not found", ", using direct raster rendering")
 
-    # Create color palette function using SCALED values for consistency
-    pal <- colorBin(
-      palette = colors,
-      domain = data$values,
-      bins = seq(scaled_min, scaled_max, length.out = 256),
-      na.color = "transparent"
-    )
+    # Apply same scaling as old mapview approach
+    valid_emission_values <- data$values[!is.na(data$values) & data$values > 0 & is.finite(data$values)]
+
+    # Initialize variables for legend
+    breaks <- NULL
+    hcl_colors <- NULL
+
+    if (length(valid_emission_values) > 0) {
+      # Calculate saturation at 99.9th percentile (same as old mapview)
+      saturation <- quantile(valid_emission_values, 0.999, na.rm = TRUE)
+
+      # Create breaks same as old mapview approach
+      breaks <- c(seq(0, saturation, length.out = 14), max(valid_emission_values, na.rm = TRUE))
+
+      # Round breaks to significant digits for cleaner legend
+      legend_digits <- 2
+      breaks <- signif(breaks, digits = legend_digits)
+
+      # Use hcl.colors for consistency with old approach
+      palette_name <- switch(input$map_colormap,
+                            "viridis" = "viridis",
+                            "plasma" = "plasma",
+                            "inferno" = "inferno",
+                            "magma" = "magma",
+                            "cividis" = "cividis",
+                            "viridis")  # default fallback
+
+      hcl_colors <- hcl.colors(15, palette_name, rev = FALSE)
+
+      # Create color palette function using breaks
+      pal <- colorBin(
+        palette = hcl_colors,
+        domain = NULL,  # Let colorBin determine domain from breaks
+        bins = breaks,
+        na.color = "transparent"
+      )
+    } else {
+      # Fallback if no valid values
+      pal <- colorBin(
+        palette = colors,
+        domain = data$values,
+        bins = seq(scaled_min, scaled_max, length.out = 256),
+        na.color = "transparent"
+      )
+    }
 
     # Clean layer ID
     clean_layer_id <- gsub("[^A-Za-z0-9_]", "_", paste0(data$pollutant, "_", data$sector, "_", input$map_year, "_emissions_fallback"))
@@ -591,19 +629,20 @@ observe({
       )
 
     # Always show legend (no toggle)
-    # Validate values before creating legend
-    valid_values <- data$values[!is.na(data$values) & is.finite(data$values)]
-    if (length(valid_values) > 0 && length(unique(valid_values)) > 1) {
-      # Create simple legend for fallback to avoid formatting issues
-      legend_values <- quantile(valid_values, probs = seq(0, 1, 0.25), na.rm = TRUE)
+    # Use the breaks created earlier for consistent legend
+    if (!is.null(breaks) && length(breaks) > 1 && !is.null(hcl_colors)) {
+      # Create legend values from breaks (same approach as old mapview)
+      legend_indices <- seq(1, length(breaks), length.out = 5)
+      legend_values <- breaks[legend_indices]
+
       legend_labels <- sapply(legend_values, function(x) {
         if (is.na(x) || !is.finite(x)) "N/A"
         else if (abs(x) < 1e-10) "0"
         else sprintf("%.1e", x)
       })
 
-      # Get corresponding colors from the palette
-      legend_colors <- pal(legend_values)
+      # Get corresponding colors from the hcl palette
+      legend_colors <- hcl_colors[legend_indices]
 
       map_proxy <- map_proxy %>%
         addLegend(
@@ -613,9 +652,31 @@ observe({
           title = sprintf("%s (kg/m²/yr)", data$pollutant),
           opacity = 0.8
         )
+    } else {
+      # Fallback to simple quantile-based legend if breaks not available
+      valid_values <- data$values[!is.na(data$values) & is.finite(data$values)]
+      if (length(valid_values) > 0 && length(unique(valid_values)) > 1) {
+        legend_values <- quantile(valid_values, probs = seq(0, 1, 0.25), na.rm = TRUE)
+        legend_labels <- sapply(legend_values, function(x) {
+          if (is.na(x) || !is.finite(x)) "N/A"
+          else if (abs(x) < 1e-10) "0"
+          else sprintf("%.1e", x)
+        })
+
+        legend_colors <- pal(legend_values)
+
+        map_proxy <- map_proxy %>%
+          addLegend(
+            position = "bottomright",
+            colors = legend_colors,
+            labels = legend_labels,
+            title = sprintf("%s (kg/m²/yr)", data$pollutant),
+            opacity = 0.8
+          )
       } else {
         message("WARNING: Insufficient valid values for fallback legend - skipping legend")
       }
+    }
   }
 
 })
