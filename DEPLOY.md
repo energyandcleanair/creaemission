@@ -90,7 +90,7 @@ gcloud run deploy $SERVICE_NAME \
   --project $PROJECT_ID \
   --allow-unauthenticated \
   --port 8080 \
-  --memory 2Gi \
+  --memory 4Gi \
   --cpu 2 \
   --timeout 3600 \
   --min-instances 0 \
