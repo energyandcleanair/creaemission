@@ -1,17 +1,16 @@
+# Shiny-only Dockerfile for local development
 # Use the rocker/tidyverse image which includes devtools
 FROM --platform=linux/amd64 rocker/shiny-verse:4
 
 # Set environment variables
 ENV PORT=8080
 ENV R_CONFIG_ACTIVE=production
-ENV TITILER_PORT=8000
 
 # Install pak for better package management
 RUN R -e "install.packages('pak', repos = 'https://cloud.r-project.org')"
 
-# Install additional packages for running multiple services
+# Install nginx for reverse proxy
 RUN apt-get update && apt-get install -y \
-    supervisor \
     nginx \
     curl \
     && rm -rf /var/lib/apt/lists/*
@@ -24,14 +23,11 @@ COPY . /app/
 RUN R -e "pak::local_install_deps('.', ask = FALSE)"
 RUN R -e "pak::local_install('.', ask = FALSE)"
 
-# Configure supervisor to run multiple services
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+# Configure nginx for reverse proxy (to external TiTiler)
+COPY nginx.conf /etc/nginx/nginx.conf
 
-# Make scripts executable
-RUN chmod +x /app/start_titiler_service.sh
+# Expose port
+EXPOSE 8080
 
-# Expose both ports
-EXPOSE 8080 8000
-
-# Start supervisor to manage both services
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/supervisord.conf"]
+# Start nginx and Shiny app
+CMD service nginx start && R -e "shiny::runApp('/app/inst', port = 8080, host = '0.0.0.0')"

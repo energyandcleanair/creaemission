@@ -2,6 +2,35 @@
 
 This guide walks you through deploying the CREA Emission Portal (Shiny app + TiTiler server) to Google Cloud Run as a single service using the Google Cloud CLI.
 
+## Architecture Overview
+
+This project uses a **hybrid deployment strategy** with separate Dockerfiles for different environments:
+
+### Local Development (docker-compose + Dockerfile.shiny)
+- **Multi-container setup** using `docker-compose.yml`
+- **TiTiler**: Separate container (`ghcr.io/developmentseed/titiler:latest`) on port 8000
+- **Shiny App**: `Dockerfile.shiny` (Shiny-only) with nginx reverse proxy
+- **nginx**: Proxies TiTiler requests to external service at `http://titiler:8000`
+- **Benefits**: Clean separation, no conflicts, easy debugging
+
+### Production (Cloud Run + Dockerfile)
+- **Single-container deployment** using main `Dockerfile`
+- **All services** (nginx + Shiny + TiTiler) managed by supervisord
+- **Benefits**: Cost-effective, simpler scaling, Cloud Run compatible
+- **TiTiler**: Runs locally within container at `localhost:8000`
+
+### Why Two Dockerfiles?
+
+| Aspect | Local (Dockerfile.shiny) | Production (Dockerfile) |
+|--------|-------------------------|-------------------------|
+| **TiTiler Source** | External (docker-compose) | Internal (supervisord) |
+| **Complexity** | Low (Shiny + nginx only) | Medium (3 services) |
+| **Conflicts** | ❌ None | ❌ Port conflicts avoided |
+| **Resource Usage** | Lower (no duplicate TiTiler) | Higher (includes TiTiler) |
+| **Deployment** | Docker Compose only | Cloud Run + Docker Compose |
+
+**Key Insight**: Separate Dockerfiles prevent conflicts while maintaining flexibility - use docker-compose locally for clean development, deploy combined container to Cloud Run for production efficiency.
+
 ## Environment Variables
 
 Set these environment variables for your deployment:
@@ -39,13 +68,13 @@ docker stop creaemission
 docker rm creaemission
 ```
 
-## Run Locally (Single Service)
+## Run Locally (Single Service - Production Simulation)
 
-For local development and testing both the Shiny app and TiTiler server in a single container:
+For testing the production setup locally with all services in one container:
 
 ```bash
-# Build the combined image
-docker build -t creaemission .
+# Build the combined image (includes TiTiler + Shiny + nginx)
+docker build -t creaemission .  # Uses main Dockerfile
 
 # Run the container
 docker run -d -p 8080:8080 --name creaemission creaemission
@@ -58,12 +87,12 @@ docker stop creaemission
 docker rm creaemission
 ```
 
-This will start a single service accessible at:
+This simulates production deployment with:
 - **Combined Service**: http://localhost:8080
 - **Shiny App**: http://localhost:8080/
-- **TiTiler Server**: http://localhost:8080/titiler/
+- **TiTiler API**: http://localhost:8080/titiler/
 
-The TiTiler is accessible via the `/titiler/` path prefix through nginx reverse proxy.
+**Note**: For regular development, use `docker-compose up` instead, which uses the cleaner `Dockerfile.shiny` without conflicts.
 
 ## Setup Steps
 
