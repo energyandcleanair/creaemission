@@ -1,12 +1,14 @@
-# R package development files
+data/
+inst/data/
+
+
+# R package development files (keep minimal)
 .Rhistory
 .RData
 .Ruserdata
 .Rprofile
 .Renviron
-
-# Duplicated data
-inst/data/
+.Rproj.user/
 
 # R package build artifacts
 *.tar.gz
@@ -19,10 +21,13 @@ doc/
 man/
 vignettes/
 
-# Test files
+# Test files and debug scripts
 tests/
 test_*.R
 *_test.R
+debug_*.R
+investigate_*.R
+quick_performance_test.R
 
 # Cache and temporary files
 cache/
@@ -30,13 +35,17 @@ cache/
 *.tmp
 *.temp
 
-# Output files
+# Output files and generated content
 output/
 *.csv
 *.pdf
 *.png
 *.jpg
 *.jpeg
+*.html
+*_files/
+*_multirow_files/
+*ggplotly*
 
 # Git files
 .git/
@@ -64,10 +73,6 @@ Thumbs.db
 # Package documentation
 *.Rd
 *.Rmd
-
-# Data files (if they're large and not needed in production)
-# data/
-# inst/data/
 
 # Development scripts
 build_*.R

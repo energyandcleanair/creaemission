@@ -20,8 +20,15 @@ WORKDIR /app
 
 # Copy the whole project
 COPY . /app/
+
+# Install dependencies
 RUN R -e "pak::local_install_deps('.', ask = FALSE)"
-RUN R -e "pak::local_install('.', ask = FALSE)"
+
+# Install remotes for local package installation
+RUN R -e "install.packages('remotes', repos = 'https://cloud.r-project.org')"
+
+# Install the package locally
+RUN R -e "remotes::install_local('.', dependencies = FALSE)"
 
 # Configure nginx for reverse proxy (to external TiTiler)
 COPY nginx.conf /etc/nginx/nginx.conf

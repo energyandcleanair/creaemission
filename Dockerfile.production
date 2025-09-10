@@ -1,12 +1,15 @@
-# Fast debug Dockerfile - skips R package installations for quicker testing
-FROM rocker/shiny-verse:4
+# Use the rocker/tidyverse image which includes devtools
+FROM --platform=linux/amd64 rocker/shiny-verse:4
 
 # Set environment variables
 ENV PORT=8080
 ENV R_CONFIG_ACTIVE=production
 ENV TITILER_PORT=8000
 
-# Install minimal additional packages for running multiple services
+# Install pak for better package management
+RUN R -e "install.packages('pak', repos = 'https://cloud.r-project.org')"
+
+# Install additional packages for running multiple services
 RUN apt-get update && apt-get install -y \
     supervisor \
     nginx \
@@ -20,12 +23,12 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Copy the whole project (including data for testing)
+# Copy the whole project
 COPY . /app/
 
-# SKIP R package installations for faster debugging
-# RUN R -e "pak::local_install_deps('.', ask = FALSE)"
-# RUN R -e "pak::local_install('.', ask = FALSE)"
+# Install dependencies
+RUN R -e "pak::local_install_deps('.', ask = FALSE)"
+RUN R -e "pak::local_install('.', ask = FALSE)"
 
 # Install TiTiler in an isolated virtual environment (avoid PEP 668 issues)
 RUN python3 -m venv /opt/titiler-venv \
@@ -45,10 +48,10 @@ COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 RUN chmod +x /app/start_titiler_service.sh
 
 # Create a simple index page for testing
-RUN echo '<html><head><title>CREA Debug</title></head><body><h1>CREA Debug Mode</h1><p>Fast deployment without package installations</p></body></html>' > /app/index.html
+RUN echo '<html><head><title>CREA Emission Portal</title></head><body><h1>CREA Emission Portal</h1><p>Shiny services enabled!</p></body></html>' > /app/index.html
 
 # Expose both ports
 EXPOSE 8080 8000
 
 # Start supervisor to manage both services
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/supervisord.conf", "-n"]
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/supervisord.conf"]

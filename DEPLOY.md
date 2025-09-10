@@ -1,6 +1,13 @@
-# Deploying CREA Emission Portal to Google Cloud Run
+# Deploying CREA Emission Portal to Google Cloud Run (Staging)
 
-This guide walks you through deploying the CREA Emission Portal (Shiny app + TiTiler server) to Google Cloud Run as a single service using the Google Cloud CLI.
+This guide walks you through deploying the CREA Emission Portal (Shiny app + TiTiler server) to Google Cloud Run **staging environment** as a single service using the Google Cloud CLI.
+
+## Staging Environment Details
+
+- **Service Name**: `emissiondashboard-staging`
+- **URL**: `https://emissiondashboard-staging-829505003332.europe-west1.run.app`
+- **Region**: `europe-west1`
+- **Project**: `crea-aq-data`
 
 ## Architecture Overview
 
@@ -10,12 +17,15 @@ This project uses a **hybrid deployment strategy** with separate Dockerfiles for
 - **Multi-container setup** using `docker-compose.yml`
 - **TiTiler**: Separate container (`ghcr.io/developmentseed/titiler:latest`) on port 8000
 - **Shiny App**: `Dockerfile.shiny` (Shiny-only) with nginx reverse proxy
-- **nginx**: Proxies TiTiler requests to external service at `http://titiler:8000`
+- **nginx**: Proxies TiTiler requests to `localhost:8000` (docker network)
+- **R Code**: Always uses `http://localhost:8000`
 - **Benefits**: Clean separation, no conflicts, easy debugging
 
 ### Production (Cloud Run + Dockerfile)
 - **Single-container deployment** using main `Dockerfile`
 - **All services** (nginx + Shiny + TiTiler) managed by supervisord
+- **Package Installation**: Uses `pak::local_install()` during build
+- **Port Configuration**: nginx (8080) → Shiny (3838), TiTiler (8000)
 - **Benefits**: Cost-effective, simpler scaling, Cloud Run compatible
 - **TiTiler**: Runs locally within container at `localhost:8000`
 
@@ -24,8 +34,10 @@ This project uses a **hybrid deployment strategy** with separate Dockerfiles for
 | Aspect | Local (Dockerfile.shiny) | Production (Dockerfile) |
 |--------|-------------------------|-------------------------|
 | **TiTiler Source** | External (docker-compose) | Internal (supervisord) |
+| **Package Installation** | remotes::install_local() | pak::local_install() |
+| **Port Config** | nginx (8080) → Shiny (8080) | nginx (8080) → Shiny (3838) |
 | **Complexity** | Low (Shiny + nginx only) | Medium (3 services) |
-| **Conflicts** | ❌ None | ❌ Port conflicts avoided |
+| **Configuration** | Simple (localhost:8000) | Optimized (separate ports) |
 | **Resource Usage** | Lower (no duplicate TiTiler) | Higher (includes TiTiler) |
 | **Deployment** | Docker Compose only | Cloud Run + Docker Compose |
 
@@ -33,14 +45,31 @@ This project uses a **hybrid deployment strategy** with separate Dockerfiles for
 
 ## Environment Variables
 
-Set these environment variables for your deployment:
+Set these environment variables for staging deployment:
 
 ```bash
 export PROJECT_ID="crea-aq-data"
 export REGION="europe-west1"
-export SERVICE_NAME="emissiondashboard"
-export SERVICE_URL="emission.energyandcleanair.org"
+export SERVICE_NAME="emissiondashboard-staging"
+export SERVICE_URL="https://emissiondashboard-staging-829505003332.europe-west1.run.app"
 ```
+
+### Package Installation
+
+Both Dockerfiles install the R package using `remotes::install_local()`:
+
+- **Method**: Install package directly from local source directory
+- **Dependencies**: Installed separately first via `pak::local_install_deps()`
+- **Benefits**: Proper package installation, all functions available via `library(creaemission)`
+- **Build Process**: `pak::local_install_deps()` → `remotes::install_local()`
+
+### TiTiler Configuration
+
+The application consistently uses `http://localhost:8000` for TiTiler in all environments:
+
+- **Local Development**: Docker network routes `localhost:8000` to the TiTiler container
+- **Production**: Internal TiTiler runs on `localhost:8000` via supervisord
+- **Simplicity**: Single hardcoded URL eliminates environment-specific configuration
 
 ## Prerequisites
 
@@ -152,12 +181,12 @@ gcloud run deploy $SERVICE_NAME \
   --max-instances 2
 ```
 
-### Single Service Deployment
+### Staging Deployment
 
-For deploying both services in a single Cloud Run service:
+For deploying to the staging environment:
 
 ```bash
-# Deploy the combined service
+# Deploy to staging
 gcloud run deploy $SERVICE_NAME \
   --source . \
   --platform managed \
@@ -173,26 +202,35 @@ gcloud run deploy $SERVICE_NAME \
   --set-env-vars="R_CONFIG_ACTIVE=production,TITILER_PORT=8000"
 ```
 
+**Note**: This deploys to the **staging environment** at:
+`https://emissiondashboard-staging-829505003332.europe-west1.run.app`
+
 This single service will provide:
-- **Shiny App**: `https://[SERVICE_URL]/`
-- **TiTiler API**: `https://[SERVICE_URL]/titiler/`
+- **Shiny App**: `https://emissiondashboard-staging-829505003332.europe-west1.run.app/`
+- **TiTiler API**: `https://emissiondashboard-staging-829505003332.europe-west1.run.app/titiler/`
 
 ## Custom Domain Setup
 
-To use a custom subdomain like `emission.energyandcleanair.org`:
+Currently deployed to **staging** at:
+`https://emissiondashboard-staging-829505003332.europe-west1.run.app`
 
-### 1. Map Custom Domain
+### For Production Deployment
+
+To use a custom subdomain like `emission.energyandcleanair.org` in production:
+
+#### 1. Map Custom Domain
 
 ```bash
-# Map the custom domain to your Cloud Run service
+# Map the custom domain to your production Cloud Run service
+export SERVICE_NAME="emissiondashboard"  # Production service
 gcloud beta run domain-mappings create \
   --service $SERVICE_NAME \
   --region $REGION \
-  --domain $SERVICE_URL \
+  --domain "emission.energyandcleanair.org" \
   --project $PROJECT_ID
 ```
 
-### 2. DNS Configuration
+#### 2. DNS Configuration
 
 You'll need to add a CNAME record in Cloudflare:
 
@@ -203,6 +241,6 @@ Value: ghs.googlehosted.com.
 TTL: 3600 (or default)
 ```
 
-### 3. SSL Certificate
+#### 3. SSL Certificate
 
 Google Cloud automatically provisions SSL certificates for custom domains. The process may take 24-48 hours.
