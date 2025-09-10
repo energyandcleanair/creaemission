@@ -32,7 +32,7 @@ observeEvent(input$map_country, {
 # Reactive for current map source object
 current_map_source <- reactive({
   req(input$map_source)
-  
+
   source_obj <- get_current_source(input$map_source, "map")
   return(source_obj)
 })
@@ -44,18 +44,18 @@ validate_and_update_map_selections <- function(new_source) {
 
   # Get available data from new source
   available_data <- source_obj$list_available_data()
-  
+
   # Handle case where no data is available
   if (nrow(available_data) == 0) {
     message("Warning: No data available for map source")
     return(list(
       year = NULL,
       pollutant = "NOx",
-      sector = "Energy", 
+      sector = "Energy",
       country = "wld"
     ))
   }
-  
+
   available_years <- sort(unique(available_data$year))
   available_pollutants <- unique(available_data$pollutant)
   available_sectors <- unique(available_data$sector)
@@ -85,7 +85,7 @@ validate_and_update_map_selections <- function(new_source) {
     }
     selected_map_pollutant(pollutant_to_use)
   }
-  
+
   # Debug output
   message(glue::glue("Map pollutant validation: current={current_pollutant}, available={paste(available_pollutants, collapse=', ')}, selected={pollutant_to_use}"))
 
@@ -103,7 +103,7 @@ validate_and_update_map_selections <- function(new_source) {
     }
     selected_map_sector(sector_to_use)
   }
-  
+
   # Debug output
   message(glue::glue("Map sector validation: current={current_sector}, available={paste(available_sectors, collapse=', ')}, selected={sector_to_use}"))
 
@@ -145,18 +145,18 @@ observeEvent(input$map_source, {
 # Initial setup observer - runs once when the app starts
 observe({
   req(input$map_source)
-  
+
   # Only run this once when the source is first available
   if (is.null(selected_map_year())) {
     # Validate and update selections for initial setup
     validated_selections <- validate_and_update_map_selections(input$map_source)
-    
+
     # Update UI inputs with validated selections
     updateSelectInput(session, "map_year", selected = validated_selections$year)
     updateSelectInput(session, "map_pollutant", selected = validated_selections$pollutant)
     updateSelectInput(session, "map_sector", selected = validated_selections$sector)
     updateSelectInput(session, "map_country", selected = validated_selections$country)
-    
+
     # Debug output
     message(glue::glue("Initial map setup: pollutant={validated_selections$pollutant}, sector={validated_selections$sector}"))
   }
@@ -192,7 +192,7 @@ output$map_pollutant_select <- renderUI({
 
   # Get available pollutants from source
   available_data <- source_obj$list_available_data()
-  
+
   # Handle case where no data is available
   if (nrow(available_data) == 0) {
     return(selectInput("map_pollutant", "Pollutant:",
@@ -200,7 +200,7 @@ output$map_pollutant_select <- renderUI({
                        choices = c("NOx" = "NOx"),
                        selected = "NOx"))
   }
-  
+
   available_pollutants <- unique(available_data$pollutant)
 
   # Create choices directly from available pollutants (no global filtering)
@@ -219,7 +219,7 @@ output$map_pollutant_select <- renderUI({
       selected <- available_pollutants_choices[1]
     }
   }
-  
+
   # Debug output
   message(glue::glue("Map pollutant UI: prev={prev_selected}, available={paste(available_pollutants_choices, collapse=', ')}, selected={selected}"))
 
@@ -237,7 +237,7 @@ output$map_year_select <- renderUI({
 
   # Get available years from actual data
   available_data <- source_obj$list_available_data()
-  
+
   # Handle case where no data is available
   if (nrow(available_data) == 0) {
     return(selectInput("map_year", "Year:",
@@ -245,7 +245,7 @@ output$map_year_select <- renderUI({
                        choices = c("2022" = 2022),
                        selected = 2022))
   }
-  
+
   years <- sort(unique(available_data$year))
 
   # Get previously selected year if it's still available
@@ -270,7 +270,7 @@ output$map_sector_select <- renderUI({
 
   # Get available sectors from source
   available_data <- source_obj$list_available_data()
-  
+
   # Handle case where no data is available
   if (nrow(available_data) == 0) {
     return(selectInput("map_sector", "Sector:",
@@ -278,7 +278,7 @@ output$map_sector_select <- renderUI({
                        choices = c("Energy" = "Energy"),
                        selected = "Energy"))
   }
-  
+
   available_sectors <- unique(available_data$sector)
 
   # Get previously selected sector if it's still available
@@ -293,7 +293,7 @@ output$map_sector_select <- renderUI({
       selected <- available_sectors[1]
     }
   }
-  
+
   # Debug output
   message(glue::glue("Map sector UI: prev={prev_selected}, available={paste(available_sectors, collapse=', ')}, selected={selected}"))
 
@@ -390,7 +390,7 @@ check_titiler <- function() {
 # Load and process raster data
 observe({
   req(input$map_pollutant, input$map_year, input$map_source, input$map_sector, input$map_country)
-  
+
   # Get raster from emissions_raster function
   r <- emissions_raster()
   req(r)
@@ -403,10 +403,10 @@ observe({
   # Apply scaling factor for better visualization
   scale_factor <- 1e6
   emission <- r * scale_factor
-  
+
   # Apply pole fix
   emission <- terra::crop(emission, terra::ext(-180, 180, -89, 89))
-  
+
   # Extract values for rescale calculation - use RAW values (not scaled)
   # TiTiler needs rescale in original units
   raw_values <- r[]
@@ -483,22 +483,25 @@ observe({
 
   # Get COG path for TiTiler
   source_obj <- current_map_source()
-  cog_path <- source_obj$get_cog_path(data$pollutant, data$sector, input$map_year, input$map_country)
+
+  # Convert sector name to sector code for COG path lookup
+  sector_code <- source_obj$get_sector_id(data$sector)
+  cog_path <- source_obj$get_cog_path(data$pollutant, sector_code, input$map_year, input$map_country)
 
   # Decide on rendering method
   if (file.exists(cog_path) && check_titiler()) {
         # Use TiTiler for fast tile-based rendering
         message("✅ Using TiTiler for fast tile rendering")
-        
+
     # Convert to container path
-        relative_path <- gsub("^.*/creaemission/", "", cog_path)
+        relative_path <- gsub("^.*/data/", "", cog_path)
         container_path <- paste0("/data/", relative_path)
-        
+
     # Get colormap name
     colormap_name <- input$map_colormap
 
     resampling <- "nearest"
-        
+
         tile_url <- sprintf(
       "http://localhost:8000/cog/tiles/WebMercatorQuad/{z}/{x}/{y}?url=%s&rescale=%.6e,%.6e&colormap_name=%s&resampling_method=%s",
           container_path,
@@ -525,7 +528,6 @@ observe({
               crossOrigin = TRUE,
               opacity = 0.8
             ),
-        attribution = paste0("TiTiler: ", data$pollutant, " (", data$units, ")"),
             layerId = clean_layer_id,
             group = "Emissions"
       )
@@ -562,7 +564,7 @@ observe({
       }
 
     map_proxy
-          
+
       } else {
     # Fallback to direct raster rendering
     message(if(file.exists(cog_path)) "⚠️ TiTiler not available" else "📁 COG not found", ", using direct raster rendering")

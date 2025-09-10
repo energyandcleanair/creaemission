@@ -1,5 +1,6 @@
-data/
-inst/data/
+# data is large; include if the app needs it at runtime
+# data/
+# inst/data/
 
 
 # R package development files (keep minimal)

@@ -92,10 +92,10 @@ CEDSMap <- R6::R6Class(
         ))
       }
 
-      # Get all NetCDF files
-      nc_files <- list.files(self$data_dir, pattern = "\\.nc$", full.names = TRUE)
+      # Get all COG TIFF files
+      tif_files <- list.files(self$data_dir, pattern = "_wld\\.tif$", full.names = TRUE)
 
-      if (length(nc_files) == 0) {
+      if (length(tif_files) == 0) {
         return(data.frame(
           pollutant = character(),
           sector = character(),
@@ -105,33 +105,37 @@ CEDSMap <- R6::R6Class(
       }
 
       # Parse filenames to extract metadata
+      # Pattern: {pollutant}_{year}_{sector}_wld.tif
       available_data <- list()
 
-      for (file in nc_files) {
+      for (file in tif_files) {
         filename <- basename(file)
-        parts <- strsplit(filename, "_")[[1]]
+        # Remove _wld.tif suffix and split by underscore
+        base_name <- gsub("_wld\\.tif$", "", filename)
+        parts <- strsplit(base_name, "_")[[1]]
 
-        if (length(parts) >= 2) {
+        if (length(parts) >= 3) {
           pollutant_from_file <- parts[1]
-          year_from_file <- as.numeric(gsub("\\.nc$", "", parts[2]))
+          year_from_file <- as.numeric(parts[2])
 
-          if (!is.na(year_from_file)) {
-            # Get available sectors from the processed NetCDF file
-            tryCatch({
-              nc_stack <- terra::rast(file)
-              sector_names <- names(nc_stack)
+          # Handle both old format (readable names) and new format (sector codes)
+          sector_part <- paste(parts[3:length(parts)], collapse = "_")
 
-              available_data[[length(available_data) + 1]] <- data.frame(
-                pollutant = pollutant_from_file,
-                sector = sector_names,
-                year = year_from_file,
-                stringsAsFactors = FALSE
-              )
+          # Try to parse as sector code first (new format)
+          sector_name <- CEDS_MAP_SECTOR_MAPPING[sector_part]
 
-            }, error = function(e) {
-              # Skip files that can't be read
-              warning(glue::glue("Could not read NetCDF file {file}: {e$message}"))
-            })
+          # If not found as code, try as readable name (old format)
+          if (is.na(sector_name)) {
+            sector_name <- sector_part
+          }
+
+          if (!is.na(year_from_file) && !is.na(sector_name) && sector_name != "") {
+            available_data[[length(available_data) + 1]] <- data.frame(
+              pollutant = pollutant_from_file,
+              sector = sector_name,
+              year = year_from_file,
+              stringsAsFactors = FALSE
+            )
           }
         }
       }
@@ -165,7 +169,7 @@ CEDSMap <- R6::R6Class(
 
     #' @description Get emissions raster
     #' @param pollutant Pollutant code
-    #' @param sector Sector code
+    #' @param sector Sector name (readable)
     #' @param year Year
     #' @param iso3 ISO3 country code
     #' @return Terra raster object or NULL if not available
@@ -191,6 +195,25 @@ CEDSMap <- R6::R6Class(
       sector_raster <- self$crop_to_country(sector_raster, iso3)
 
       return(sector_raster)
+    },
+
+    #' @description Get raster using COG with sector code conversion
+    #' @param pollutant Pollutant code
+    #' @param sector Sector name (readable)
+    #' @param year Year
+    #' @param iso3 ISO3 country code
+    #' @param prefer_cog Prefer COG over NetCDF if both exist
+    #' @return Terra raster object or NULL if not available
+    get_cog = function(pollutant, sector, year, iso3 = "wld", prefer_cog = TRUE) {
+      # Convert readable sector name to sector code for filename lookup
+      sector_code <- names(CEDS_MAP_SECTOR_MAPPING)[CEDS_MAP_SECTOR_MAPPING == sector]
+
+      if (is.na(sector_code)) {
+        return(NULL)
+      }
+
+      # Call parent method with sector code
+      return(super$get_cog(pollutant, sector_code, year, iso3, prefer_cog))
     },
 
     #' @description Clear all built data
@@ -393,9 +416,12 @@ CEDSMap <- R6::R6Class(
         for (sector_name in sector_names) {
           sector_raster <- processed_data[[sector_name]]
 
+          # Convert readable sector name back to sector code for filename
+          sector_code <- names(CEDS_MAP_SECTOR_MAPPING)[CEDS_MAP_SECTOR_MAPPING == sector_name]
+
           for (country in countries) {
             tryCatch({
-              cog_path <- self$get_cog_path(pollutant, sector_name, year, country)
+              cog_path <- self$get_cog_path(pollutant, sector_code, year, country)
 
               # Skip if file exists and not overwriting
               if (file.exists(cog_path) && !overwrite) {
@@ -409,17 +435,14 @@ CEDSMap <- R6::R6Class(
               # CRITICAL: Apply leaflet-friendly extent (avoid poles) for COG format
               final_raster <- terra::crop(final_raster, terra::ext(-180, 180, -89, 89))
 
-              # Write as COG with optimizations
-              terra::writeRaster(
-                final_raster,
-                cog_path,
-                overwrite = TRUE,
-                gdal = c("TILED=YES", "COMPRESS=LZW", "OVERVIEW_RESAMPLING=BILINEAR")
-              )
-
-              # Add overviews for different zoom levels
-              system(paste("gdaladdo -r bilinear", shQuote(cog_path), "2 4 8 16 32"),
-                     ignore.stdout = TRUE, ignore.stderr = TRUE)
+            # Write as COG with optimizations (includes overviews automatically)
+            terra::writeRaster(
+              final_raster,
+              cog_path,
+              overwrite = TRUE,
+              filetype = "COG",
+              gdal = c("COMPRESS=LZW", "OVERVIEW_RESAMPLING=BILINEAR")
+            )
 
               created_files <- c(created_files, cog_path)
 

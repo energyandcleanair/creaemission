@@ -4,6 +4,7 @@ services:
   # TiTiler service for serving COG files
   titiler:
     image: ghcr.io/developmentseed/titiler:latest
+    platform: linux/amd64
     container_name: creaemission-titiler
     ports:
       - "8000:8000"

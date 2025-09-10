@@ -138,10 +138,10 @@ EDGARMap <- R6::R6Class(
         ))
       }
 
-      # Get all processed NetCDF files
-      nc_files <- list.files(self$data_dir, pattern = "\\.nc$", full.names = TRUE)
+      # Get all COG TIFF files
+      tif_files <- list.files(self$data_dir, pattern = "_wld\\.tif$", full.names = TRUE)
 
-      if (length(nc_files) == 0) {
+      if (length(tif_files) == 0) {
         return(data.frame(
           pollutant = character(),
           sector = character(),
@@ -151,39 +151,43 @@ EDGARMap <- R6::R6Class(
       }
 
       # Parse filenames to extract metadata
+      # Pattern: {pollutant}_{year}_{sector}_wld.tif
       available_data <- list()
 
-      for (file in nc_files) {
+      for (file in tif_files) {
         filename <- basename(file)
-        # Parse EDGAR processed filename pattern: pollutant_year_vversion.nc
-        parts <- strsplit(tools::file_path_sans_ext(filename), "_")[[1]]
+        # Remove _wld.tif suffix
+        base_name <- gsub("_wld\\.tif$", "", filename)
 
-        if (length(parts) >= 2) {
-          # Extract pollutant (parts[1]), year (parts[2])
+        # Find the pollutant and year at the beginning
+        # Pattern: pollutant_year_sectorname
+        parts <- strsplit(base_name, "_")[[1]]
+
+        if (length(parts) >= 3) {
           pollutant_from_file <- parts[1]
+          # Map EDGAR pollutant codes to standard names
           pollutant_mapped <- map_values(pollutant_from_file, EDGAR_POLLUTANTS)
           year_from_file <- as.numeric(parts[2])
 
-          if (!is.na(year_from_file)) {
-            # Processed files have multiple layers (one per sector)
-            tryCatch({
-              nc_stack <- terra::rast(file)
-              sector_names <- names(nc_stack)
+          # Everything after pollutant and year is the sector (may contain underscores/spaces)
+          sector_from_file <- paste(parts[3:length(parts)], collapse = "_")
 
-              if (length(sector_names) > 0) {
-                for (sector_name in sector_names) {
-                  available_data[[length(available_data) + 1]] <- data.frame(
-                    pollutant = pollutant_mapped,
-                    sector = map_values(sector_name, EDGAR_PROVINCIAL_SECTOR_MAPPING),
-                    year = year_from_file,
-                    stringsAsFactors = FALSE
-                  )
-                }
-              }
-            }, error = function(e) {
-              # Skip files that can't be read
-              warning(glue::glue("Could not read processed NetCDF file {file}: {e$message}"))
-            })
+          if (!is.na(year_from_file) && !is.na(sector_from_file) && sector_from_file != "") {
+            # Try to map sector - handles both codes and names
+            sector_mapped <- map_values(sector_from_file, EDGAR_PROVINCIAL_SECTOR_MAPPING)
+
+            # If mapping didn't work (returns original value), use as-is
+            if (sector_mapped == sector_from_file && sector_from_file %in% EDGAR_PROVINCIAL_SECTOR_MAPPING) {
+              # It's already a readable name
+              sector_mapped <- sector_from_file
+            }
+
+            available_data[[length(available_data) + 1]] <- data.frame(
+              pollutant = pollutant_mapped,
+              sector = sector_mapped,
+              year = year_from_file,
+              stringsAsFactors = FALSE
+            )
           }
         }
       }
@@ -268,6 +272,45 @@ EDGARMap <- R6::R6Class(
       }
 
       return(sector_raster)
+    },
+
+    #' @description Get raster using COG with sector code conversion
+    #' @param pollutant Pollutant code
+    #' @param sector Sector name (readable)
+    #' @param year Year
+    #' @param iso3 ISO3 country code
+    #' @param prefer_cog Prefer COG over NetCDF if both exist
+    #' @return Terra raster object or NULL if not available
+    get_cog = function(pollutant, sector, year, iso3 = "wld", prefer_cog = TRUE) {
+      # Convert readable sector name to sector code for filename lookup
+      sector_code <- names(EDGAR_PROVINCIAL_SECTOR_MAPPING)[EDGAR_PROVINCIAL_SECTOR_MAPPING == sector]
+
+      if (length(sector_code) == 0) {
+        return(NULL)
+      }
+
+      # Call parent method with sector code
+      return(super$get_cog(pollutant, sector_code, year, iso3, prefer_cog))
+    },
+
+    #' @description Get sector ID from sector name or code
+    #' @param sector Sector name or code
+    #' @return Sector ID or NULL if not found
+    get_sector_id = function(sector) {
+      # If sector is already a sector code
+      if (sector %in% names(EDGAR_PROVINCIAL_SECTOR_MAPPING)) {
+        return(sector)
+      }
+
+      # Try to find sector by name
+      sector_code <- names(EDGAR_PROVINCIAL_SECTOR_MAPPING)[EDGAR_PROVINCIAL_SECTOR_MAPPING == sector]
+      
+      if (length(sector_code) > 0) {
+        return(sector_code[1])  # Return first match if multiple
+      }
+
+      # If sector is not found, try to use it directly as a sector code
+      return(sector)
     },
 
     #' @description Clear all built data
@@ -544,14 +587,14 @@ EDGARMap <- R6::R6Class(
       processed_data <- processed_info$data
 
       # Generate COG for each sector and country combination
-      sector_names <- names(processed_data)
+      sector_codes <- names(processed_data)
 
-      for (sector_name in sector_names) {
-        sector_raster <- processed_data[[sector_name]]
+      for (sector_code in sector_codes) {
+        sector_raster <- processed_data[[sector_code]]
 
         for (country in countries) {
           tryCatch({
-            cog_path <- self$get_cog_path(pollutant, sector_name, year, country)
+            cog_path <- self$get_cog_path(pollutant, sector_code, year, country)
 
             # Skip if file exists and not overwriting
             if (file.exists(cog_path) && !overwrite) {
@@ -565,17 +608,14 @@ EDGARMap <- R6::R6Class(
             # CRITICAL: Apply leaflet-friendly extent (avoid poles) for COG format
             final_raster <- terra::crop(final_raster, terra::ext(-180, 180, -89, 89))
 
-            # Write as COG with optimizations
+            # Write as COG with optimizations (includes overviews automatically)
             terra::writeRaster(
               final_raster,
               cog_path,
               overwrite = TRUE,
-              gdal = c("TILED=YES", "COMPRESS=LZW", "OVERVIEW_RESAMPLING=BILINEAR")
+              filetype = "COG",
+              gdal = c("COMPRESS=LZW", "OVERVIEW_RESAMPLING=BILINEAR")
             )
-
-            # Add overviews for different zoom levels
-            system(paste("gdaladdo -r bilinear", shQuote(cog_path), "2 4 8 16 32"),
-                   ignore.stdout = TRUE, ignore.stderr = TRUE)
 
             created_files <- c(created_files, cog_path)
 
