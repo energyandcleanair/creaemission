@@ -19,6 +19,8 @@ tabPanel("Maps",
                                    "Cividis" = "cividis"),
                         selected = "viridis"),
 
+             uiOutput("map_rendering_select"),
+
              downloadButton(outputId="download_map", "Download (.tif)", class="btn-secondary")
            ),
            # Show a plot of the generated distribution

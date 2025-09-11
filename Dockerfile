@@ -43,8 +43,8 @@ RUN python3 -m venv /opt/titiler-venv \
 # Ensure venv binaries are on PATH at runtime
 ENV PATH="/opt/titiler-venv/bin:${PATH}"
 
-# Configure Shiny Server (listen on 8080)
-COPY shiny-server.conf /etc/shiny-server/shiny-server.conf
+# # Configure Shiny Server (listen on 8080)
+# COPY shiny-server.conf /etc/shiny-server/shiny-server.conf
 
 # Configure supervisor to run multiple services (main config)
 COPY supervisord.conf /etc/supervisor/supervisord.conf
@@ -53,8 +53,8 @@ COPY supervisord.conf /etc/supervisor/supervisord.conf
 RUN chmod +x /app/start_titiler_service.sh
 
 # Install the demo app into Shiny Server directory
-RUN mkdir -p /srv/shiny-server/app \
- && cp /app/shiny_app_entry.R /srv/shiny-server/app/app.R
+# RUN mkdir -p /srv/shiny-server/app \
+#   && cp /app/start_shiny.R /srv/shiny-server/app/app.R
 
 EXPOSE 8080
 
