@@ -11,11 +11,11 @@ setwd(app_root)
 on.exit(setwd(old_wd), add = TRUE)
 
 # Load local package code so `library(creaemission)` resolves
-try({
-  if (requireNamespace("pkgload", quietly = TRUE)) {
-    pkgload::load_all("/app", quiet = TRUE)
-  }
-}, silent = TRUE)
+# try({
+#   if (requireNamespace("pkgload", quietly = TRUE)) {
+#     pkgload::load_all("/app", quiet = TRUE)
+#   }
+# }, silent = TRUE)
 
 source(file.path(app_root, "global.R"), local = TRUE)
 source(file.path(app_root, "ui.R"), local = TRUE)

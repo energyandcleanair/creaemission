@@ -43,7 +43,8 @@ init_map_tab <- function(input, output, session) {
 
     # Validate year selection
     current_year <- selected_map_year()
-    if (!is.null(current_year) && current_year %in% available_years) {
+    if (!is.null(current_year) &&
+        current_year %in% available_years) {
       # Keep current year if it's available
       year_to_use <- current_year
     } else {
@@ -54,7 +55,8 @@ init_map_tab <- function(input, output, session) {
 
     # Validate pollutant selection
     current_pollutant <- selected_map_pollutant()
-    if (!is.null(current_pollutant) && current_pollutant %in% available_pollutants) {
+    if (!is.null(current_pollutant) &&
+        current_pollutant %in% available_pollutants) {
       # Keep current pollutant if it's available
       pollutant_to_use <- current_pollutant
     } else {
@@ -68,11 +70,16 @@ init_map_tab <- function(input, output, session) {
     }
 
     # Debug output
-    message(glue::glue("Map pollutant validation: current={current_pollutant}, available={paste(available_pollutants, collapse=', ')}, selected={pollutant_to_use}"))
+    message(
+      glue::glue(
+        "Map pollutant validation: current={current_pollutant}, available={paste(available_pollutants, collapse=', ')}, selected={pollutant_to_use}"
+      )
+    )
 
     # Validate sector selection
     current_sector <- selected_map_sector()
-    if (!is.null(current_sector) && current_sector %in% available_sectors) {
+    if (!is.null(current_sector) &&
+        current_sector %in% available_sectors) {
       # Keep current sector if it's available
       sector_to_use <- current_sector
     } else {
@@ -86,7 +93,11 @@ init_map_tab <- function(input, output, session) {
     }
 
     # Debug output
-    message(glue::glue("Map sector validation: current={current_sector}, available={paste(available_sectors, collapse=', ')}, selected={sector_to_use}"))
+    message(
+      glue::glue(
+        "Map sector validation: current={current_sector}, available={paste(available_sectors, collapse=', ')}, selected={sector_to_use}"
+      )
+    )
 
     # For maps, we'll use a predefined list of countries since map sources don't have country info
     # Keep current country selection if it's valid
@@ -101,12 +112,14 @@ init_map_tab <- function(input, output, session) {
     # Update stored selections
     selected_map_country(country_to_use)
 
-    return(list(
-      year = year_to_use,
-      pollutant = pollutant_to_use,
-      sector = sector_to_use,
-      country = country_to_use
-    ))
+    return(
+      list(
+        year = year_to_use,
+        pollutant = pollutant_to_use,
+        sector = sector_to_use,
+        country = country_to_use
+      )
+    )
   }
 
   # Observers to update stored selections when input changes
@@ -164,7 +177,11 @@ init_map_tab <- function(input, output, session) {
       updateSelectInput(session, "map_country", selected = validated_selections$country)
 
       # Debug output
-      message(glue::glue("Initial map setup: pollutant={validated_selections$pollutant}, sector={validated_selections$sector}"))
+      message(
+        glue::glue(
+          "Initial map setup: pollutant={validated_selections$pollutant}, sector={validated_selections$sector}"
+        )
+      )
     }
   })
 
@@ -184,10 +201,13 @@ init_map_tab <- function(input, output, session) {
 
   # UI Output Elements --------------------------------------
   output$map_source_select <- renderUI({
-    selectInput("map_source", "Data source:",
-                choices = c('CEDS'='CEDS', 'EDGAR'='EDGAR'),
-                selected='CEDS',
-                multiple=F)
+    selectInput(
+      "map_source",
+      "Data source:",
+      choices = c('CEDS' = 'CEDS', 'EDGAR' = 'EDGAR'),
+      selected = 'CEDS',
+      multiple = F
+    )
   })
 
   output$map_pollutant_select <- renderUI({
@@ -201,10 +221,15 @@ init_map_tab <- function(input, output, session) {
 
     # Handle case where no data is available
     if (nrow(available_data) == 0) {
-      return(selectInput("map_pollutant", "Pollutant:",
-                         multiple=F,
-                         choices = c("NOx" = "NOx"),
-                         selected = "NOx"))
+      return(
+        selectInput(
+          "map_pollutant",
+          "Pollutant:",
+          multiple = F,
+          choices = c("NOx" = "NOx"),
+          selected = "NOx"
+        )
+      )
     }
 
     available_pollutants <- unique(available_data$pollutant)
@@ -215,7 +240,8 @@ init_map_tab <- function(input, output, session) {
 
     # Get previously selected pollutant if it's still available
     prev_selected <- selected_map_pollutant()
-    if(!is.null(prev_selected) && prev_selected %in% available_pollutants_choices) {
+    if (!is.null(prev_selected) &&
+        prev_selected %in% available_pollutants_choices) {
       selected <- prev_selected
     } else {
       # Use NOx as default if available, otherwise first available pollutant
@@ -227,12 +253,19 @@ init_map_tab <- function(input, output, session) {
     }
 
     # Debug output
-    message(glue::glue("Map pollutant UI: prev={prev_selected}, available={paste(available_pollutants_choices, collapse=', ')}, selected={selected}"))
+    message(
+      glue::glue(
+        "Map pollutant UI: prev={prev_selected}, available={paste(available_pollutants_choices, collapse=', ')}, selected={selected}"
+      )
+    )
 
-    selectInput("map_pollutant", "Pollutant:",
-                multiple=F,
-                choices = available_pollutants_choices,
-                selected=selected)
+    selectInput(
+      "map_pollutant",
+      "Pollutant:",
+      multiple = F,
+      choices = available_pollutants_choices,
+      selected = selected
+    )
   })
 
   output$map_year_select <- renderUI({
@@ -246,26 +279,32 @@ init_map_tab <- function(input, output, session) {
 
     # Handle case where no data is available
     if (nrow(available_data) == 0) {
-      return(selectInput("map_year", "Year:",
-                         multiple=F,
-                         choices = c("2022" = 2022),
-                         selected = 2022))
+      return(selectInput(
+        "map_year",
+        "Year:",
+        multiple = F,
+        choices = c("2022" = 2022),
+        selected = 2022
+      ))
     }
 
     years <- sort(unique(available_data$year))
 
     # Get previously selected year if it's still available
     prev_selected <- selected_map_year()
-    if(!is.null(prev_selected) && prev_selected %in% years) {
+    if (!is.null(prev_selected) && prev_selected %in% years) {
       selected <- prev_selected
     } else {
       selected <- max(years)
     }
 
-    selectInput("map_year", "Year:",
-                multiple=F,
-                choices = rev(years),
-                selected=selected)
+    selectInput(
+      "map_year",
+      "Year:",
+      multiple = F,
+      choices = rev(years),
+      selected = selected
+    )
   })
 
   output$map_sector_select <- renderUI({
@@ -279,17 +318,23 @@ init_map_tab <- function(input, output, session) {
 
     # Handle case where no data is available
     if (nrow(available_data) == 0) {
-      return(selectInput("map_sector", "Sector:",
-                         multiple=F,
-                         choices = c("Energy" = "Energy"),
-                         selected = "Energy"))
+      return(
+        selectInput(
+          "map_sector",
+          "Sector:",
+          multiple = F,
+          choices = c("Energy" = "Energy"),
+          selected = "Energy"
+        )
+      )
     }
 
     available_sectors <- unique(available_data$sector)
 
     # Get previously selected sector if it's still available
     prev_selected <- selected_map_sector()
-    if(!is.null(prev_selected) && prev_selected %in% available_sectors) {
+    if (!is.null(prev_selected) &&
+        prev_selected %in% available_sectors) {
       selected <- prev_selected
     } else {
       # Use Energy (Power Generation) as default if available, otherwise first available sector
@@ -301,12 +346,19 @@ init_map_tab <- function(input, output, session) {
     }
 
     # Debug output
-    message(glue::glue("Map sector UI: prev={prev_selected}, available={paste(available_sectors, collapse=', ')}, selected={selected}"))
+    message(
+      glue::glue(
+        "Map sector UI: prev={prev_selected}, available={paste(available_sectors, collapse=', ')}, selected={selected}"
+      )
+    )
 
-    selectInput("map_sector", "Sector:",
-                multiple=F,
-                choices = available_sectors,
-                selected=selected)
+    selectInput(
+      "map_sector",
+      "Sector:",
+      multiple = F,
+      choices = available_sectors,
+      selected = selected
+    )
   })
 
   output$map_country_select <- renderUI({
@@ -314,29 +366,34 @@ init_map_tab <- function(input, output, session) {
 
     # For maps, use a predefined list of countries since map sources work with global data
     # and can crop to specific countries
-    countries <- c("Global"="wld",
-                   "Indonesia"="IDN",
-                   "India"="IND",
-                   "China"="CHN",
-                   "Thailand"="THA",
-                   "Vietnam"="VNM",
-                   "South Africa"="ZAF",
-                   "United States"="USA",
-                   "Brazil"="BRA",
-                   "Russia"="RUS")
+    countries <- c(
+      "Global" = "wld",
+      "Indonesia" = "IDN",
+      "India" = "IND",
+      "China" = "CHN",
+      "Thailand" = "THA",
+      "Vietnam" = "VNM",
+      "South Africa" = "ZAF",
+      "United States" = "USA",
+      "Brazil" = "BRA",
+      "Russia" = "RUS"
+    )
 
     # Get previously selected country if it's still available
     prev_selected <- selected_map_country()
-    if(!is.null(prev_selected) && prev_selected %in% countries) {
+    if (!is.null(prev_selected) && prev_selected %in% countries) {
       selected <- prev_selected
     } else {
       selected <- "wld"
     }
 
-    selectInput("map_country", "Country:",
-                multiple=F,
-                choices = countries,
-                selected=selected)
+    selectInput(
+      "map_country",
+      "Country:",
+      multiple = F,
+      choices = countries,
+      selected = selected
+    )
   })
 
   output$map_rendering_select <- renderUI({
@@ -346,7 +403,7 @@ init_map_tab <- function(input, output, session) {
     if (titiler_available) {
       # Both options available
       choices <- c("TiTiler (Fast Tiling)" = "titiler",
-                  "Direct Rendering" = "direct")
+                   "Direct Rendering" = "direct")
       selected <- "titiler"  # Default to TiTiler when available
     } else {
       # Only direct rendering available
@@ -354,10 +411,13 @@ init_map_tab <- function(input, output, session) {
       selected <- "direct"
     }
 
-    selectInput("map_rendering", "Rendering Method:",
-                multiple=F,
-                choices = choices,
-                selected=selected)
+    selectInput(
+      "map_rendering",
+      "Rendering Method:",
+      multiple = F,
+      choices = choices,
+      selected = selected
+    )
   })
 
   # Output Elements --------------------------------------
@@ -392,11 +452,11 @@ init_map_tab <- function(input, output, session) {
     # Create base map that will be updated via proxy
     leaflet() %>%
       addTiles() %>%
-      setView(lng = 0, lat = 0, zoom = 2) %>%
-      addLayersControl(
-        overlayGroups = "Emissions",
-        options = layersControlOptions(collapsed = FALSE)
-      )
+      setView(lng = 0,
+              lat = 0,
+              zoom = 2) %>%
+      addLayersControl(overlayGroups = "Emissions",
+                       options = layersControlOptions(collapsed = FALSE))
   })
 
   # Reactive values for map state
@@ -406,12 +466,14 @@ init_map_tab <- function(input, output, session) {
   # Function to check TiTiler availability
   check_titiler <- function() {
     tryCatch({
-      if (!requireNamespace("httr", quietly = TRUE)) return(FALSE)
+      if (!requireNamespace("httr", quietly = TRUE))
+        return(FALSE)
 
-      # Get TiTiler URL from environment variable, fallback to localhost:8000
-      titiler_url <- Sys.getenv("TITILER_URL", "http://localhost:8000")
+      # TiTiler has no /cog/health; use a stable endpoint behind our /cog proxy
+      titiler_base_url <- Sys.getenv("TITILER_URL", "")
+      titiler_health_url <- paste0(titiler_base_url, "/cog/tileMatrixSets")
 
-      response <- httr::GET(titiler_url, httr::timeout(2))
+      response <- httr::GET(titiler_health_url, httr::timeout(2))
       httr::status_code(response) == 200
     }, error = function(e) {
       FALSE
@@ -420,7 +482,13 @@ init_map_tab <- function(input, output, session) {
 
   # Load and process raster data
   observe({
-    req(input$map_pollutant, input$map_year, input$map_source, input$map_sector, input$map_country)
+    req(
+      input$map_pollutant,
+      input$map_year,
+      input$map_source,
+      input$map_sector,
+      input$map_country
+    )
 
     # Get raster from emissions_raster function
     r <- emissions_raster()
@@ -445,7 +513,8 @@ init_map_tab <- function(input, output, session) {
 
     # Extract scaled values for legend display
     emission_values <- emission[]
-    emission_values <- emission_values[!is.na(emission_values) & emission_values > 0]
+    emission_values <- emission_values[!is.na(emission_values) &
+                                         emission_values > 0]
 
     if (length(raw_values) > 0) {
       # Always use auto-rescale (no toggle in UI)
@@ -463,22 +532,21 @@ init_map_tab <- function(input, output, session) {
       ))
     } else {
       # Default values when no valid data
-      map_value_range(list(
-        raw = c(0, 1),
-        scaled = c(0, 1e6)
-      ))
+      map_value_range(list(raw = c(0, 1), scaled = c(0, 1e6)))
     }
 
     # Store processed raster with scale factor
-    map_raster_data(list(
-      raster = emission,
-      values = emission_values,
-      raw_values = raw_values,
-      units = raster_units,
-      sector = sector,
-      pollutant = pollutant,
-      scale_factor = scale_factor
-    ))
+    map_raster_data(
+      list(
+        raster = emission,
+        values = emission_values,
+        raw_values = raw_values,
+        units = raster_units,
+        sector = sector,
+        pollutant = pollutant,
+        scale_factor = scale_factor
+      )
+    )
   })
 
   # Update map visualization
@@ -517,72 +585,100 @@ init_map_tab <- function(input, output, session) {
 
     # Convert sector name to sector code for COG path lookup
     sector_code <- source_obj$get_sector_id(data$sector)
-    cog_path <- source_obj$get_cog_path(data$pollutant, sector_code, input$map_year, input$map_country)
+    cog_path <- source_obj$get_cog_path(data$pollutant,
+                                        sector_code,
+                                        input$map_year,
+                                        input$map_country)
 
     # Decide on rendering method
     rendering_method <- input$map_rendering
     if (is.null(rendering_method)) {
       rendering_method <- "direct"  # Fallback if not set
     }
-    use_titiler <- rendering_method == "titiler" && file.exists(cog_path) && check_titiler()
-
+    use_titiler <- rendering_method == "titiler" &&
+      file.exists(cog_path) && check_titiler()
     if (use_titiler) {
-          # Use TiTiler for fast tile-based rendering
-          message("✅ Using TiTiler for fast tile rendering")
+      # Use TiTiler for fast tile-based rendering
+      message("✅ Using TiTiler for fast tile rendering")
 
       # Convert to container path
-          relative_path <- gsub("^.*/data/", "", cog_path)
-          container_path <- paste0("/data/", relative_path)
+      relative_path <- gsub("^.*/data/", "", cog_path)
+      container_path <- paste0("data/", relative_path)
 
       # Get colormap name
       colormap_name <- input$map_colormap
 
-    resampling <- "nearest"
+      resampling <- "nearest"
 
-    # Get TiTiler URL from environment variable, fallback to localhost:8000
-    titiler_base_url <- Sys.getenv("TITILER_URL", "http://localhost:8000")
+      # Get TiTiler base URL prefix for client requests.
+      # Use relative path by default so it works behind reverse proxy (nginx/Cloud Run).
+      titiler_base_url <- Sys.getenv("TITILER_URL", "")
 
 
-    tile_url <- sprintf(
-      "%s/cog/tiles/WebMercatorQuad/{z}/{x}/{y}?url=%s&rescale=%.6e,%.6e&colormap_name=%s&resampling_method=%s",
-          titiler_base_url,
-          container_path,
-      raw_min,
-      raw_max,
-      colormap_name,
-      resampling
-    )
+      tile_url <- sprintf(
+        "%s/cog/tiles/WebMercatorQuad/{z}/{x}/{y}?url=%s&rescale=%.6e,%.6e&colormap_name=%s&resampling_method=%s",
+        titiler_base_url,
+        container_path,
+        raw_min,
+        raw_max,
+        colormap_name,
+        resampling
+      )
 
-      message(sprintf("TiTiler rescale: %.6e to %.6e (raw units)", raw_min, raw_max))
-      message(sprintf("Legend range: %.6e to %.6e (scaled units)", scaled_min, scaled_max))
+      message(sprintf(
+        "TiTiler rescale: %.6e to %.6e (raw units)",
+        raw_min,
+        raw_max
+      ))
+      message(sprintf(
+        "Legend range: %.6e to %.6e (scaled units)",
+        scaled_min,
+        scaled_max
+      ))
 
       # Clean layer ID
-      clean_layer_id <- gsub("[^A-Za-z0-9_]", "_", paste0(data$pollutant, "_", data$sector, "_", input$map_year, "_emissions"))
+      clean_layer_id <- gsub(
+        "[^A-Za-z0-9_]",
+        "_",
+        paste0(
+          data$pollutant,
+          "_",
+          data$sector,
+          "_",
+          input$map_year,
+          "_emissions"
+        )
+      )
 
       # Add TiTiler tiles
       map_proxy <- leafletProxy("map") %>%
-            clearImages() %>%
-            clearControls() %>%
-            addTiles(
-              urlTemplate = tile_url,
-              options = tileOptions(
-                tms = FALSE,
-                crossOrigin = TRUE,
-                opacity = 0.8
-              ),
-              layerId = clean_layer_id,
-              group = "Emissions"
+        clearImages() %>%
+        clearControls() %>%
+        addTiles(
+          urlTemplate = tile_url,
+          options = tileOptions(
+            tms = FALSE,
+            crossOrigin = TRUE,
+            opacity = 0.8
+          ),
+          layerId = clean_layer_id,
+          group = "Emissions"
         )
 
       # Always show legend (no toggle)
       # Validate scaled values to prevent legend errors
-      if (!is.na(scaled_min) && !is.na(scaled_max) && is.finite(scaled_min) && is.finite(scaled_max) && scaled_min < scaled_max) {
+      if (!is.na(scaled_min) &&
+          !is.na(scaled_max) &&
+          is.finite(scaled_min) &&
+          is.finite(scaled_max) && scaled_min < scaled_max) {
         # Create simple legend with manual labels to avoid formatting issues
-        legend_values <- c(scaled_min,
-                          scaled_min + (scaled_max - scaled_min) * 0.25,
-                          scaled_min + (scaled_max - scaled_min) * 0.5,
-                          scaled_min + (scaled_max - scaled_min) * 0.75,
-                          scaled_max)
+        legend_values <- c(
+          scaled_min,
+          scaled_min + (scaled_max - scaled_min) * 0.25,
+          scaled_min + (scaled_max - scaled_min) * 0.5,
+          scaled_min + (scaled_max - scaled_min) * 0.75,
+          scaled_max
+        )
 
         # Create manual labels
         legend_labels <- c(
@@ -594,16 +690,16 @@ init_map_tab <- function(input, output, session) {
         )
 
         map_proxy <- map_proxy %>%
-            addLegend(
-              position = "bottomright",
+          addLegend(
+            position = "bottomright",
             colors = colors[seq(1, 256, length.out = 5)],
             labels = legend_labels,
             title = sprintf("%s (kg/m²/yr)", data$pollutant),
             opacity = 0.8
           )
-        } else {
-          message("WARNING: Invalid scaled values for legend - skipping legend")
-        }
+      } else {
+        message("WARNING: Invalid scaled values for legend - skipping legend")
+      }
 
       map_proxy
 
@@ -620,7 +716,8 @@ init_map_tab <- function(input, output, session) {
       }
 
       # Apply same scaling as old mapview approach
-      valid_emission_values <- data$values[!is.na(data$values) & data$values > 0 & is.finite(data$values)]
+      valid_emission_values <- data$values[!is.na(data$values) &
+                                             data$values > 0 & is.finite(data$values)]
 
       # Initialize variables for legend
       breaks <- NULL
@@ -631,27 +728,31 @@ init_map_tab <- function(input, output, session) {
         saturation <- quantile(valid_emission_values, 0.999, na.rm = TRUE)
 
         # Create breaks same as old mapview approach
-        breaks <- c(seq(0, saturation, length.out = 14), max(valid_emission_values, na.rm = TRUE))
+        breaks <- c(seq(0, saturation, length.out = 14),
+                    max(valid_emission_values, na.rm = TRUE))
 
         # Round breaks to significant digits for cleaner legend
         legend_digits <- 2
         breaks <- signif(breaks, digits = legend_digits)
 
         # Use hcl.colors for consistency with old approach
-        palette_name <- switch(input$map_colormap,
-                              "viridis" = "viridis",
-                              "plasma" = "plasma",
-                              "inferno" = "inferno",
-                              "magma" = "magma",
-                              "cividis" = "cividis",
-                              "viridis")  # default fallback
+        palette_name <- switch(
+          input$map_colormap,
+          "viridis" = "viridis",
+          "plasma" = "plasma",
+          "inferno" = "inferno",
+          "magma" = "magma",
+          "cividis" = "cividis",
+          "viridis"
+        )  # default fallback
 
         hcl_colors <- hcl.colors(15, palette_name, rev = FALSE)
 
         # Create color palette function using breaks
         pal <- colorBin(
           palette = hcl_colors,
-          domain = NULL,  # Let colorBin determine domain from breaks
+          domain = NULL,
+          # Let colorBin determine domain from breaks
           bins = breaks,
           na.color = "transparent"
         )
@@ -666,31 +767,46 @@ init_map_tab <- function(input, output, session) {
       }
 
       # Clean layer ID
-      clean_layer_id <- gsub("[^A-Za-z0-9_]", "_", paste0(data$pollutant, "_", data$sector, "_", input$map_year, "_emissions_fallback"))
+      clean_layer_id <- gsub(
+        "[^A-Za-z0-9_]",
+        "_",
+        paste0(
+          data$pollutant,
+          "_",
+          data$sector,
+          "_",
+          input$map_year,
+          "_emissions_fallback"
+        )
+      )
 
       # Add raster image
       map_proxy <- leafletProxy("map") %>%
-            clearImages() %>%
-            clearControls() %>%
-            addRasterImage(
+        clearImages() %>%
+        clearControls() %>%
+        addRasterImage(
           data$raster,
-              colors = pal,
-              opacity = 0.8,
-              group = "Emissions",
-              layerId = clean_layer_id
+          colors = pal,
+          opacity = 0.8,
+          group = "Emissions",
+          layerId = clean_layer_id
         )
 
       # Always show legend (no toggle)
       # Use the breaks created earlier for consistent legend
-      if (!is.null(breaks) && length(breaks) > 1 && !is.null(hcl_colors)) {
+      if (!is.null(breaks) &&
+          length(breaks) > 1 && !is.null(hcl_colors)) {
         # Create legend values from breaks (same approach as old mapview)
         legend_indices <- seq(1, length(breaks), length.out = 5)
         legend_values <- breaks[legend_indices]
 
         legend_labels <- sapply(legend_values, function(x) {
-          if (is.na(x) || !is.finite(x)) "N/A"
-          else if (abs(x) < 1e-10) "0"
-          else sprintf("%.1e", x)
+          if (is.na(x) || !is.finite(x))
+            "N/A"
+          else if (abs(x) < 1e-10)
+            "0"
+          else
+            sprintf("%.1e", x)
         })
 
         # Get corresponding colors from the hcl palette
@@ -706,13 +822,20 @@ init_map_tab <- function(input, output, session) {
           )
       } else {
         # Fallback to simple quantile-based legend if breaks not available
-        valid_values <- data$values[!is.na(data$values) & is.finite(data$values)]
-        if (length(valid_values) > 0 && length(unique(valid_values)) > 1) {
-          legend_values <- quantile(valid_values, probs = seq(0, 1, 0.25), na.rm = TRUE)
+        valid_values <- data$values[!is.na(data$values) &
+                                      is.finite(data$values)]
+        if (length(valid_values) > 0 &&
+            length(unique(valid_values)) > 1) {
+          legend_values <- quantile(valid_values,
+                                    probs = seq(0, 1, 0.25),
+                                    na.rm = TRUE)
           legend_labels <- sapply(legend_values, function(x) {
-            if (is.na(x) || !is.finite(x)) "N/A"
-            else if (abs(x) < 1e-10) "0"
-            else sprintf("%.1e", x)
+            if (is.na(x) || !is.finite(x))
+              "N/A"
+            else if (abs(x) < 1e-10)
+              "0"
+            else
+              sprintf("%.1e", x)
           })
 
           legend_colors <- pal(legend_values)
@@ -773,9 +896,12 @@ init_map_tab <- function(input, output, session) {
 
     # Add value labels
     value_ticks <- seq(rescale_min, rescale_max, length.out = 6)
-    for (i in 6:1) {  # Reverse order for top-to-bottom
+    for (i in 6:1) {
+      # Reverse order for top-to-bottom
       colorbar_html <- paste0(colorbar_html,
-        '<div>', sprintf("%.1e", value_ticks[i]), '</div>')
+                              '<div>',
+                              sprintf("%.1e", value_ticks[i]),
+                              '</div>')
     }
 
     colorbar_html <- paste0(colorbar_html, '</div>')
@@ -783,11 +909,14 @@ init_map_tab <- function(input, output, session) {
     # Add title
     title_text <- sprintf("%s Emissions (kg/m²/yr)", data$pollutant)
 
-    colorbar_html <- paste0(colorbar_html,
+    colorbar_html <- paste0(
+      colorbar_html,
       '<div style="text-align: center; font-weight: bold; font-size: 12px; margin-top: 5px;">',
-      title_text, '</div>',
+      title_text,
+      '</div>',
       '<div style="text-align: center; font-size: 10px; color: #666; margin-top: 2px;">',
-      sprintf("Colormap: %s", input$map_colormap), '</div>',
+      sprintf("Colormap: %s", input$map_colormap),
+      '</div>',
       '</div>'
     )
 

@@ -11,8 +11,8 @@ This project uses a **hybrid deployment strategy** with separate Dockerfiles for
 - **Multi-container setup** using `docker-compose.yml`
 - **TiTiler**: Separate container (`ghcr.io/developmentseed/titiler:latest`) on port 8000
 - **Shiny App**: `Dockerfile.shiny` (Shiny-only) with nginx reverse proxy
-- **nginx**: Proxies TiTiler requests to `localhost:8000` (docker network)
-- **R Code**: Always uses `http://localhost:8000`
+ - **nginx**: Proxies TiTiler requests to TiTiler service; app uses same-origin `/cog/` path
+ - **R Code**: Uses relative base (e.g., `/cog/...`) so it works in all envs
 - **Benefits**: Clean separation, no conflicts, easy debugging
 
 ### Production (Cloud Run + Dockerfile)
@@ -67,7 +67,7 @@ docker rm creaemission
 This simulates production deployment with:
 - **Combined Service**: http://localhost:8080
 - **Shiny App**: http://localhost:8080/
-- **TiTiler API**: http://localhost:8080/titiler/
+- **TiTiler API**: http://localhost:8080/cog/
 
 ## Run Locally (composer)
 For regular development, use `docker-compose up` instead.

@@ -44,10 +44,13 @@ RUN python3 -m venv /opt/titiler-venv \
 ENV PATH="/opt/titiler-venv/bin:${PATH}"
 
 # # Configure Shiny Server (listen on 8080)
-# COPY shiny-server.conf /etc/shiny-server/shiny-server.conf
+COPY shiny-server.conf /etc/shiny-server/shiny-server.conf
 
 # Configure supervisor to run multiple services (main config)
 COPY supervisord.conf /etc/supervisor/supervisord.conf
+
+# Configure nginx
+COPY nginx.conf /etc/nginx/nginx.conf
 
 # Make scripts executable
 RUN chmod +x /app/start_titiler_service.sh
@@ -56,7 +59,7 @@ RUN chmod +x /app/start_titiler_service.sh
 # RUN mkdir -p /srv/shiny-server/app \
 #   && cp /app/start_shiny.R /srv/shiny-server/app/app.R
 
-EXPOSE 8080
+EXPOSE 8080 8001
 
 # Start supervisor to manage both services
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/supervisord.conf", "-n"]

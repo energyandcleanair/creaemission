@@ -7,6 +7,7 @@ services:
     container_name: creaemission-titiler
     ports:
       - "8000:8000"
+      - "8001:8001"
     environment:
       - TITILER_TILESIZE=1024
       - TITILER_COG_VALIDATE=true
@@ -36,6 +37,8 @@ services:
     environment:
       - PORT=8080
       - R_CONFIG_ACTIVE=production
+      # In docker-compose, send tiles directly to the titiler service
+      - TITILER_URL=http://titiler:8000
     volumes:
       - ./data:/app/data:ro
       - ./cache:/app/cache:ro
