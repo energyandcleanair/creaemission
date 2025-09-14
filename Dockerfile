@@ -30,9 +30,8 @@ COPY . /app/
 # Clean up any dangling symlinks in inst/ that can break package install
 RUN find /app/inst -xtype l -exec rm -f {} + || true
 
-# SKIP R package installations for faster debugging
-# Install local R package so the real app can run
-RUN R -e "install.packages(c('remotes','pkgload'), repos='https://cloud.r-project.org')"
+# Install pak (faster dependency resolution/installs) and install local package
+RUN R -e "install.packages('remotes', repos='https://cloud.r-project.org')"
 RUN R -e "remotes::install_local('/app', dependencies = TRUE, upgrade = 'never')"
 
 # Install TiTiler in an isolated virtual environment (avoid PEP 668 issues)

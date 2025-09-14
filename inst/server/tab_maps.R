@@ -397,18 +397,20 @@ init_map_tab <- function(input, output, session) {
   })
 
   output$map_rendering_select <- renderUI({
-    # Check if TiTiler is available
+    # Re-check availability periodically to surface TiTiler once ready
+    invalidateLater(2000, session)
+
     titiler_available <- check_titiler()
+    current <- isolate(input$map_rendering)
 
     if (titiler_available) {
-      # Both options available
       choices <- c("TiTiler (Fast Tiling)" = "titiler",
                    "Direct Rendering" = "direct")
-      selected <- "titiler"  # Default to TiTiler when available
+      # Preserve user choice if valid; otherwise prefer TiTiler
+      selected <- if (!is.null(current) && current %in% choices) current else "titiler"
     } else {
-      # Only direct rendering available
       choices <- c("Direct Rendering" = "direct")
-      selected <- "direct"
+      selected <- if (!is.null(current) && current %in% choices) current else "direct"
     }
 
     selectInput(
@@ -465,19 +467,19 @@ init_map_tab <- function(input, output, session) {
 
   # Function to check TiTiler availability
   check_titiler <- function() {
-    tryCatch({
-      if (!requireNamespace("httr", quietly = TRUE))
-        return(FALSE)
+    if (!requireNamespace("httr", quietly = TRUE)) return(FALSE)
 
-      # TiTiler has no /cog/health; use a stable endpoint behind our /cog proxy
-      titiler_base_url <- Sys.getenv("TITILER_URL", "")
-      titiler_health_url <- paste0(titiler_base_url, "/cog/tileMatrixSets")
+    # Server-side health check requires absolute URL
+    # Use explicit base if provided; otherwise prefer internal nginx base
+    base <- Sys.getenv("TITILER_URL", Sys.getenv("TITILER_INTERNAL_BASE", "http://127.0.0.1:8080"))
+    health_url <- paste0(base, "/cog/tileMatrixSets")
 
-      response <- httr::GET(titiler_health_url, httr::timeout(2))
-      httr::status_code(response) == 200
-    }, error = function(e) {
-      FALSE
-    })
+    ok <- tryCatch({
+      resp <- httr::GET(health_url, httr::timeout(5))
+      httr::status_code(resp) == 200
+    }, error = function(e) FALSE)
+
+    ok
   }
 
   # Load and process raster data
@@ -601,9 +603,12 @@ init_map_tab <- function(input, output, session) {
       # Use TiTiler for fast tile-based rendering
       message("✅ Using TiTiler for fast tile rendering")
 
-      # Convert to container path
+      # Build absolute HTTP URL to the COG via the internal nginx /data/ route
+      # Use a container-internal base so TiTiler can fetch it reliably
       relative_path <- gsub("^.*/data/", "", cog_path)
-      container_path <- paste0("data/", relative_path)
+      data_base <- Sys.getenv("TITILER_DATA_BASE", "http://127.0.0.1:8080")
+      data_url <- paste0(data_base, "/data/", relative_path)
+      url_param <- utils::URLencode(data_url, reserved = TRUE)
 
       # Get colormap name
       colormap_name <- input$map_colormap
@@ -612,13 +617,14 @@ init_map_tab <- function(input, output, session) {
 
       # Get TiTiler base URL prefix for client requests.
       # Use relative path by default so it works behind reverse proxy (nginx/Cloud Run).
-      titiler_base_url <- Sys.getenv("TITILER_URL", "")
+      # Always use relative path for the tiles endpoint so the browser hits our nginx
+      titiler_base_url <- ""
 
 
       tile_url <- sprintf(
         "%s/cog/tiles/WebMercatorQuad/{z}/{x}/{y}?url=%s&rescale=%.6e,%.6e&colormap_name=%s&resampling_method=%s",
         titiler_base_url,
-        container_path,
+        url_param,
         raw_min,
         raw_max,
         colormap_name,

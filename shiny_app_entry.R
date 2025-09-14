@@ -10,12 +10,15 @@ old_wd <- getwd()
 setwd(app_root)
 on.exit(setwd(old_wd), add = TRUE)
 
-# Load local package code so `library(creaemission)` resolves
-# try({
-#   if (requireNamespace("pkgload", quietly = TRUE)) {
-#     pkgload::load_all("/app", quiet = TRUE)
-#   }
-# }, silent = TRUE)
+# Load local package code in development only
+# if (identical(Sys.getenv("USE_PKGLOAD"), "true")) {
+#   try({
+#     if (requireNamespace("pkgload", quietly = TRUE)) {
+#       message("Using pkgload::load_all for development...")
+#       pkgload::load_all("/app", quiet = TRUE)
+#     }
+#   }, silent = TRUE)
+# }
 
 source(file.path(app_root, "global.R"), local = TRUE)
 source(file.path(app_root, "ui.R"), local = TRUE)

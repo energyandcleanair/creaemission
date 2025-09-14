@@ -31,6 +31,7 @@ Imports:
     leaflet,
     mapview,
     jsonlite,
+    httr,
     colorRamps,
     DT,
     shinyBS,

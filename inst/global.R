@@ -1,4 +1,13 @@
-library(creaemission)
+cat("[global] Starting to load libraries...\n")
+flush.console()
+
+cat("[global] Loading creaemission...\n"); flush.console()
+creaemission_load_time <- system.time({
+  library(creaemission)
+})
+cat(sprintf("[global] creaemission loaded in %.2fs\n", creaemission_load_time[["elapsed"]]))
+flush.console()
+cat("[global] Loading tibble/tidyverse...\n"); flush.console()
 library(tibble)
 library(tidyverse)
 library(countrycode)
@@ -13,9 +22,11 @@ library(shinyWidgets)
 library(plotly)
 library(DT)
 library(scales)
+cat("[global] Loading raster/mapview (geo libs)...\n"); flush.console()
 library(raster)
 library(mapview)
 library(glue)
+cat("[global] Finished loading libraries.\n"); flush.console()
 sel <- dplyr::select
 
 # DEBUG prints for paths
@@ -59,6 +70,8 @@ sources <- list(
   )
 )
 
+message("==== DATA SOURCES READY ====")
+
 # Helper function to get current source object
 get_current_source <- function(source_name, region_type) {
   source_name_lower <- tolower(source_name)
@@ -74,4 +87,3 @@ get_current_source <- function(source_name, region_type) {
     stop(glue::glue("Invalid region_type: {region_type}"))
   }
 }
-
