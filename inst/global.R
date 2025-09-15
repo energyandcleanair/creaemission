@@ -1,44 +1,9 @@
-cat("[global] Starting to load libraries...\n")
-flush.console()
-
-cat("[global] Loading creaemission...\n"); flush.console()
-creaemission_load_time <- system.time({
-  library(creaemission)
-})
-cat(sprintf("[global] creaemission loaded in %.2fs\n", creaemission_load_time[["elapsed"]]))
-flush.console()
 cat("[global] Loading tibble/tidyverse...\n"); flush.console()
-library(tibble)
-library(tidyverse)
-library(countrycode)
-library(colorRamps)
+library(dplyr)
 library(RColorBrewer)
-library(shiny)
-library(shinydashboard)
 library(shinycssloaders)
-library(lubridate)
-library(scales)
-library(shinyWidgets)
-library(plotly)
-library(DT)
-library(scales)
-cat("[global] Loading raster/mapview (geo libs)...\n"); flush.console()
-library(raster)
-library(mapview)
-library(glue)
 cat("[global] Finished loading libraries.\n"); flush.console()
 sel <- dplyr::select
-
-# DEBUG prints for paths
-message(glue("==== PROJECT ROOT: {get_project_root()}"))
-message(glue("==== PROJECT DATA: {get_data_path()}"))
-message(glue("==== CURRENT FOLDER: {getwd()}"))
-message(glue("{c('==== FILES IN CURRENT FOLDER:\n', paste(list.files(), collapse='\n'))}"))
-message(glue("{c('==== FILES IN PARENT FOLDER:\n', paste(list.files('..'), collapse='\n'))}"))
-
-
-# Files are now in the same directory and will be loaded by the package
-# No need to source them explicitly
 
 # Pollutants are now derived dynamically from available_data
 # No global pollutants variable needed
@@ -47,8 +12,6 @@ group_bys <- c("Country"="region_name", "Sector" = "sector_group", "Sector - Det
 
 chart_types <- c("Bar (Horizontal)"="barh",
                  "Timeseries (area)"="area")
-# topn <- 20 # How many rows max in chart
-
 map_palettes=c("Viridis"="viridis","OrRd"="OrRdREVERSE","Inferno"="inferno")
 
 
@@ -57,16 +20,16 @@ message("==== INITIALIZING DATA SOURCES ====")
 
 sources <- list(
   national = list(
-    ceds = CEDSNational$new(),
-    edgar = EDGARNational$new()
+    ceds = creaemission::CEDSNational$new(),
+    edgar = creaemission::EDGARNational$new()
   ),
   provincial = list(
-    ceds = CEDSProvincial$new(),
-    edgar = EDGARProvincial$new()
+    ceds = creaemission::CEDSProvincial$new(),
+    edgar = creaemission::EDGARProvincial$new()
   ),
   map = list(
-    ceds = CEDSMap$new(),
-    edgar = EDGARMap$new()
+    ceds = creaemission::CEDSMap$new(),
+    edgar = creaemission::EDGARMap$new()
   )
 )
 

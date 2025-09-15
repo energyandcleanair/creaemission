@@ -28,7 +28,7 @@ Set these environment variables for staging deployment:
 ```bash
 export PROJECT_ID="crea-aq-data"
 export REGION="europe-west1"
-export SERVICE_NAME="emissiondashboard"
+export SERVICE_NAME="emissiondashboard-staging"
 
 # Deploy using Cloud Build (automatically builds and deploys)
 gcloud run deploy $SERVICE_NAME \
@@ -40,7 +40,9 @@ gcloud run deploy $SERVICE_NAME \
   --port 8080 \
   --memory 4Gi \
   --cpu 2 \
+  --cpu-boost \
   --timeout 3600 \
+  --startup-probe=httpGet.path=/ready,httpGet.port=8080,periodSeconds=5,timeoutSeconds=2,failureThreshold=120 \
   --min-instances 0 \
   --max-instances 2
 ```
@@ -71,3 +73,32 @@ This simulates production deployment with:
 
 ## Run Locally (composer)
 For regular development, use `docker-compose up` instead.
+
+## Use TiTiler with native Shiny (no Docker for Shiny)
+When running Shiny directly (e.g., from RStudio), start TiTiler separately and expose your local `data/` so tiles can be served fast:
+
+```bash
+# 1) Start TiTiler (Docker)
+#    Note: maps host port 80 -> container 8000
+docker run -d --name titiler-local \
+  -p 80:8000 \
+  -e TITILER_LOCALFILE_ENABLED=true \
+  -e TITILER_TILESIZE=1024 \
+  -v "$PWD/data":/data:ro \
+  -v "$PWD/cache":/cache:ro \
+  ghcr.io/developmentseed/titiler:latest
+
+# 2) Serve static files so TiTiler can fetch COGs over HTTP at http://127.0.0.1:8080/data/
+#    Run from the project root so /data is accessible at /data/...
+python3 -m http.server 8080 --bind 127.0.0.1
+
+# 3) In your R session (before launching the app), point the app to TiTiler
+export TITILER_URL=http://localhost
+# TiTiler container must fetch COGs from your host; use host.docker.internal on macOS
+export TITILER_DATA_BASE=http://host.docker.internal:8080
+# or inside R:
+# Sys.setenv(TITILER_URL = "http://localhost",
+#            TITILER_DATA_BASE = "http://host.docker.internal:8080")
+```
+
+Then run the Shiny app normally (e.g., runApp("inst")) and choose TiTiler rendering in the UI. Health check: `http://localhost/cog/tileMatrixSets` should return JSON when TiTiler is up.

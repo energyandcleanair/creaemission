@@ -19,6 +19,8 @@ tabPanel("Maps",
                                    "Cividis" = "cividis"),
                         selected = "viridis"),
 
+            sliderInput("map_opacity", "Opacity:", min = 0, max = 1, value = 0.8, step = 0.05, ticks = FALSE),
+
              uiOutput("map_rendering_select"),
 
              downloadButton(outputId="download_map", "Download (.tif)", class="btn-secondary")

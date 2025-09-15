@@ -78,7 +78,7 @@ validate_and_update_selections <- function(new_source, new_region_type) {
       countries_to_use <- valid_countries
     } else {
       # Use "all" as default for national, first country for provincial
-      if (new_region_type == REGIONTYPE_NATIONAL) {
+      if (new_region_type == creaemission::REGIONTYPE_NATIONAL) {
         countries_to_use <- "all"
       } else {
         countries_to_use <- available_countries[1]
@@ -86,7 +86,7 @@ validate_and_update_selections <- function(new_source, new_region_type) {
     }
   } else {
     # No previous selection, use defaults
-    if (new_region_type == REGIONTYPE_NATIONAL) {
+    if (new_region_type == creaemission::REGIONTYPE_NATIONAL) {
       countries_to_use <- "all"
     } else {
       countries_to_use <- available_countries[1]
@@ -223,7 +223,7 @@ emissions <- reactive({
   # Add region_name if not present
   if(!"region_name" %in% names(e)){
     e <- e %>%
-      mutate(region_name = iso3_to_country(iso3))
+      mutate(region_name = creaemission::iso3_to_country(iso3))
   }
 
   # Aggregate
@@ -312,8 +312,8 @@ output$plot <- renderPlotly({
       mutate(
         # Clean the color names using utility functions
         color_clean = case_when(
-          color_by == "sector" ~ clean_sector_name(color),
-          color_by == "fuel" ~ clean_fuel_name(color),
+          color_by == "sector" ~ creaemission::clean_sector_name(color),
+          color_by == "fuel" ~ creaemission::clean_fuel_name(color),
           TRUE ~ color
         ),
         # Truncate very long names to prevent popup overflow
@@ -478,15 +478,15 @@ output$selectCountry <- renderUI({
   # Get current source object
   source_obj <- current_source()
 
-  multiple = (input$region_type==REGIONTYPE_NATIONAL)
+  multiple = (input$region_type==creaemission::REGIONTYPE_NATIONAL)
 
-  if(input$region_type==REGIONTYPE_NATIONAL){
+  if(input$region_type==creaemission::REGIONTYPE_NATIONAL){
     # Get countries from source
     available_data <- source_obj$list_available_data()
 
     countries <- available_data %>%
       distinct(iso3) %>%
-      mutate(country = iso3_to_country(iso3)) %>%
+      mutate(country = creaemission::iso3_to_country(iso3)) %>%
       filter(iso3!="world", !is.na(country)) %>%
       arrange(country) %>%
       distinct(country, iso3) %>%
@@ -515,7 +515,7 @@ output$selectCountry <- renderUI({
 
     countries <- available_data %>%
       distinct(iso3) %>%
-      mutate(country = iso3_to_country(iso3)) %>%
+      mutate(country = creaemission::iso3_to_country(iso3)) %>%
       distinct(country, iso3) %>%
       tibble::deframe()
 

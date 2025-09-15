@@ -107,6 +107,13 @@ deploy_cloudrun <- function(project_id = "crea-aq-data",
                            max_instances = 10,
                            timeout = 3600,
                            allow_unauthenticated = TRUE,
+                           # Readiness + startup options
+                           use_startup_probe = TRUE,
+                           startup_path = "/ready",
+                           startup_period_seconds = 5,
+                           startup_timeout_seconds = 2,
+                           startup_failure_threshold = 120,
+                           cpu_boost = TRUE,
                            dry_run = FALSE) {
 
   # Check if we're in the right directory
@@ -119,7 +126,7 @@ deploy_cloudrun <- function(project_id = "crea-aq-data",
   Sys.setenv(PATH = paste("~/google-cloud-sdk/bin", Sys.getenv("PATH"), sep = ":"))
 
 
-  # Build the deployment command
+  # Build the deployment command (initial deploy to create/update the service)
   cmd <- sprintf(
     "gcloud run deploy %s --source . --platform managed --region %s --project %s --port 8080 --memory %s --cpu %d --timeout %d --min-instances 0 --max-instances %d",
     service_name, region, project_id, memory, cpu, timeout, max_instances
@@ -162,40 +169,65 @@ deploy_cloudrun <- function(project_id = "crea-aq-data",
   }
 
   # Execute the deployment
-  message("Starting deployment...")
+  message("Starting deployment (source build + deploy)...")
   message("This may take several minutes...")
 
-  tryCatch({
-    result <- system(cmd, intern = TRUE)
+  res <- system(cmd)
+  if (res != 0) {
+    stop("Initial gcloud run deploy failed (source build). See output above.")
+  }
 
-    if (attr(result, "status") == 0) {
-      message("✅ Deployment completed successfully!")
+  # Optionally enable CPU boost and apply startup probe via YAML replace
+  # We fetch the resolved image and generate a minimal Service spec to set startupProbe
+  if (use_startup_probe || cpu_boost) {
+    message("Configuring readiness (startup probe) and CPU boost...")
 
-      # Get the service URL
-      url_cmd <- sprintf(
-        "gcloud run services describe %s --region=%s --project=%s --format='value(status.url)'",
-        service_name, region, project_id
-      )
-
-      service_url <- system(url_cmd, intern = TRUE)
-      if (length(service_url) > 0 && nzchar(service_url[1])) {
-        message("🌐 Your app is available at: ", service_url[1])
-      }
-
-      message()
-      message("Useful commands:")
-      message("  - View logs: gcloud run services logs tail ", service_name, " --region=", region)
-      message("  - Update service: gcloud run services update ", service_name, " --region=", region)
-      message("  - Delete service: gcloud run services delete ", service_name, " --region=", region)
-
+    img_cmd <- sprintf(
+      "gcloud run services describe %s --region=%s --project=%s --format=\"value(spec.template.spec.containers[0].image)\"",
+      service_name, region, project_id
+    )
+    image <- tryCatch(trimws(system(img_cmd, intern = TRUE)[1]), error = function(e) "")
+    if (!nzchar(image)) {
+      warning("Could not resolve deployed image; skipping startupProbe apply.")
     } else {
-      message("❌ Deployment failed. Check the output above for errors.")
-    }
+      yaml_path <- tempfile(fileext = ".yaml")
+      # Construct Service YAML
+      yaml <- sprintf("apiVersion: serving.knative.dev/v1\nkind: Service\nmetadata:\n  name: %s\nspec:\n  template:\n    metadata:\n      annotations:\n        %s\n    spec:\n      timeoutSeconds: %d\n      containers:\n      - image: \"%s\"\n        ports:\n        - containerPort: 8080\n        resources:\n          limits:\n            memory: '%s'\n            cpu: '%s'\n%s",
+        service_name,
+        if (isTRUE(cpu_boost)) "run.googleapis.com/cpu-boost: \"true\"" else "",
+        as.integer(timeout),
+        image,
+        memory,
+        as.character(cpu),
+        if (isTRUE(use_startup_probe)) sprintf("        startupProbe:\n          httpGet:\n            path: %s\n            port: 8080\n          periodSeconds: %d\n          failureThreshold: %d\n          timeoutSeconds: %d\n",
+            startup_path, as.integer(startup_period_seconds), as.integer(startup_failure_threshold), as.integer(startup_timeout_seconds)) else ""
+      )
+      writeLines(yaml, yaml_path)
 
-  }, error = function(e) {
-    message("❌ Deployment failed: ", e$message)
-    message("Please check your gcloud configuration and try again.")
-  })
+      # Apply YAML via replace and optionally enable cpu-boost (also as direct flag)
+      if (isTRUE(cpu_boost)) {
+        system(sprintf("gcloud run services update %s --region %s --cpu-boost", service_name, region))
+      }
+      repl_cmd <- sprintf("gcloud run services replace %s --region %s --project %s", shQuote(yaml_path), region, project_id)
+      rc <- system(repl_cmd)
+      if (rc != 0) {
+        warning("gcloud run services replace failed; startupProbe may not be applied. Check logs.")
+      }
+    }
+  }
+
+  # Emit service URL and helpful commands
+  url_cmd <- sprintf(
+    "gcloud run services describe %s --region=%s --project=%s --format='value(status.url)'",
+    service_name, region, project_id
+  )
+  service_url <- tryCatch(system(url_cmd, intern = TRUE)[1], error = function(e) "")
+  if (nzchar(service_url)) message("🌐 Your app is available at: ", service_url)
+  message()
+  message("Useful commands:")
+  message("  - Tail logs: gcloud beta run services logs read ", service_name, " --region=", region)
+  message("  - Update service: gcloud run services update ", service_name, " --region=", region)
+  message("  - Replace from YAML: gcloud run services replace <file.yaml> --region=", region)
 
   invisible(NULL)
 }

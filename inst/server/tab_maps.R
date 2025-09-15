@@ -554,7 +554,7 @@ init_map_tab <- function(input, output, session) {
   # Update map visualization
   observe({
     data <- map_raster_data()
-    req(data, input$map_colormap)
+    req(data, input$map_colormap, input$map_opacity)
 
     # Get current rescale values (separate raw and scaled)
     value_ranges <- map_value_range()
@@ -566,6 +566,7 @@ init_map_tab <- function(input, output, session) {
     # Generate color palette (needed for both TiTiler and fallback)
     colormap_name <- input$map_colormap
     n_colors <- 256
+    layer_opacity <- input$map_opacity
 
     # Get colors from R's built-in palettes (matching TiTiler names)
     if (colormap_name == "viridis") {
@@ -658,14 +659,14 @@ init_map_tab <- function(input, output, session) {
 
       # Add TiTiler tiles
       map_proxy <- leafletProxy("map") %>%
-        clearImages() %>%
+        clearGroup("Emissions") %>%
         clearControls() %>%
         addTiles(
           urlTemplate = tile_url,
           options = tileOptions(
             tms = FALSE,
             crossOrigin = TRUE,
-            opacity = 0.8
+            opacity = layer_opacity
           ),
           layerId = clean_layer_id,
           group = "Emissions"
@@ -788,12 +789,12 @@ init_map_tab <- function(input, output, session) {
 
       # Add raster image
       map_proxy <- leafletProxy("map") %>%
-        clearImages() %>%
+        clearGroup("Emissions") %>%
         clearControls() %>%
         addRasterImage(
           data$raster,
           colors = pal,
-          opacity = 0.8,
+          opacity = layer_opacity,
           group = "Emissions",
           layerId = clean_layer_id
         )

@@ -42,9 +42,6 @@ RUN python3 -m venv /opt/titiler-venv \
 # Ensure venv binaries are on PATH at runtime
 ENV PATH="/opt/titiler-venv/bin:${PATH}"
 
-# # Configure Shiny Server (listen on 8080)
-COPY shiny-server.conf /etc/shiny-server/shiny-server.conf
-
 # Configure supervisor to run multiple services (main config)
 COPY supervisord.conf /etc/supervisor/supervisord.conf
 
