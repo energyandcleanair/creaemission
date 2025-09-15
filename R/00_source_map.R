@@ -63,6 +63,43 @@ SourceMap <- R6::R6Class(
       }
       
       return(raster)
+    },
+
+    # COG-related methods
+    
+    #' @description Get COG file path (same directory as NetCDF)
+    #' @param pollutant Pollutant code
+    #' @param sector Sector code  
+    #' @param year Year
+    #' @param iso3 ISO3 country code
+    #' @return COG file path
+    get_cog_path = function(pollutant, sector, year, iso3 = "wld") {
+      # COG files go in the same directory as NetCDF files
+      filename <- paste0(pollutant, "_", year, "_", sector, "_", iso3, ".tif")
+      return(file.path(self$data_dir, filename))
+    },
+    
+    #' @description Get raster using COG if available, fallback to NetCDF
+    #' @param pollutant Pollutant code
+    #' @param sector Sector code
+    #' @param year Year
+    #' @param iso3 ISO3 country code
+    #' @param prefer_cog Prefer COG over NetCDF if both exist
+    #' @return Terra raster object or NULL if not available
+    get_cog = function(pollutant, sector, year, iso3 = "wld", prefer_cog = TRUE) {
+      cog_path <- self$get_cog_path(pollutant, sector, year, iso3)
+      
+      if (prefer_cog && file.exists(cog_path)) {
+        # Load from COG
+        tryCatch({
+          return(terra::rast(cog_path))
+        }, error = function(e) {
+          message(paste0("COG loading failed: ", e$message, ", falling back to NetCDF"))
+        })
+      }
+      
+      # Fallback to original NetCDF method
+      return(self$get(pollutant, sector, year, iso3))
     }
   )
 ) 

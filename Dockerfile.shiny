@@ -1,0 +1,40 @@
+# Shiny-only Dockerfile for local development
+# Use the rocker/tidyverse image which includes devtools
+FROM --platform=linux/amd64 rocker/shiny-verse:4
+
+# Set environment variables
+ENV PORT=8080
+ENV R_CONFIG_ACTIVE=production
+
+# Install pak for better package management
+RUN R -e "install.packages('pak', repos = 'https://cloud.r-project.org')"
+
+# Install nginx for reverse proxy
+RUN apt-get update && apt-get install -y \
+    nginx \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy the whole project
+COPY . /app/
+
+# Install dependencies
+RUN R -e "pak::local_install_deps('.', ask = FALSE)"
+
+# Install remotes for local package installation
+RUN R -e "install.packages('remotes', repos = 'https://cloud.r-project.org')"
+
+# Install the package locally
+RUN R -e "remotes::install_local('.', dependencies = FALSE)"
+
+# Configure nginx for reverse proxy (to external TiTiler)
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Expose port
+EXPOSE 8080
+
+# Start nginx and Shiny app
+CMD service nginx start && R -e "shiny::runApp('/app/inst', port = 8080, host = '0.0.0.0')"

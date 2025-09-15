@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  # TiTiler service for serving COG files
+  titiler:
+    image: ghcr.io/developmentseed/titiler:latest
+    container_name: creaemission-titiler
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    environment:
+      - TITILER_TILESIZE=1024
+      - TITILER_COG_VALIDATE=true
+      - TITILER_COG_NODATA=-9999
+    volumes:
+      - ./data:/data:ro
+      - ./cache:/cache:ro
+      - ./test_cogs:/test_cogs:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - creaemission-network
+
+  # Shiny app service
+  shiny:
+    build:
+      context: .
+      dockerfile: Dockerfile.shiny
+    container_name: creaemission-shiny
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - R_CONFIG_ACTIVE=production
+      # In docker-compose, send tiles directly to the titiler service
+      - TITILER_URL=http://titiler:8000
+    volumes:
+      - ./data:/app/data:ro
+      - ./cache:/app/cache:ro
+      - ./test_cogs:/app/test_cogs:ro
+    depends_on:
+      titiler:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - creaemission-network
+
+networks:
+  creaemission-network:
+    driver: bridge
+
+volumes:
+  data:
+  cache:

@@ -13,8 +13,8 @@ tabPanel("Charts",
 
              # Radio button to choose between country and province
              selectInput("region_type", "Region type:",
-                           choices = c('Countries'=REGIONTYPE_NATIONAL, 'Provinces'=REGIONTYPE_PROVINCIAL),
-                           selected=REGIONTYPE_NATIONAL,
+                           choices = c('Countries'=creaemission::REGIONTYPE_NATIONAL, 'Provinces'=creaemission::REGIONTYPE_PROVINCIAL),
+                           selected=creaemission::REGIONTYPE_NATIONAL,
                            multiple=F),
              selectInput("chart_type", "Chart type:", multiple=F, choices = chart_types, selected=chart_types[1]),
              uiOutput("selectYear"),

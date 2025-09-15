@@ -31,9 +31,11 @@ Imports:
     leaflet,
     mapview,
     jsonlite,
+    httr,
     colorRamps,
     DT,
     shinyBS,
+    viridisLite,
     rcrea,
     creahelpers
 Remotes:
