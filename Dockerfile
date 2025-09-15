@@ -54,10 +54,6 @@ COPY nginx.conf /etc/nginx/nginx.conf
 # Make scripts executable
 RUN chmod +x /app/start_titiler_service.sh
 
-# Install the demo app into Shiny Server directory
-# RUN mkdir -p /srv/shiny-server/app \
-#   && cp /app/start_shiny.R /srv/shiny-server/app/app.R
-
 EXPOSE 8080 8001
 
 # Start supervisor to manage both services
