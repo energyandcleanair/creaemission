@@ -3,7 +3,6 @@ library(shinydashboard)
 
 library(shinyBS)
 library(leaflet)
-library(plotly)
 
 ui <- navbarPage(
     title=div(img(src="crea_logo.svg", height=44)),

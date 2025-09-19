@@ -67,7 +67,6 @@ Thumbs.db
 # inst/data/
 
 # Development scripts
-build_*.R
 test_*.R
 
 # README and documentation

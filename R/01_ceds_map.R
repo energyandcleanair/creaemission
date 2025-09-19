@@ -83,6 +83,15 @@ CEDSMap <- R6::R6Class(
     #' @param pollutant Optional pollutant filter
     #' @return Data frame with available pollutant/sector/year combinations
     list_available_data = function(year = NULL, sector = NULL, pollutant = NULL) {
+      # Keep this lightweight; remove noisy performance logs
+      # Try prebuilt cache (no filters only)
+      if (is.null(pollutant) && is.null(year) && is.null(sector)) {
+        cache_file <- file.path(get_project_root(), "inst", "cache", "available_data", "ceds_map.rds")
+        if (file.exists(cache_file)) {
+          # message("CEDS map: loading prebuilt available_data cache")
+          return(readRDS(cache_file))
+        }
+      }
       if (!dir.exists(self$data_dir)) {
         return(data.frame(
           pollutant = character(),
@@ -94,6 +103,7 @@ CEDSMap <- R6::R6Class(
 
       # Get all COG TIFF files
       tif_files <- list.files(self$data_dir, pattern = "_wld\\.tif$", full.names = TRUE)
+      message(glue::glue("CEDS map: scanning data_dir={self$data_dir}, tif_found={length(tif_files)}"))
 
       if (length(tif_files) == 0) {
         return(data.frame(
@@ -182,6 +192,7 @@ CEDSMap <- R6::R6Class(
       }
 
       # Load the processed NetCDF file
+      if (!requireNamespace("terra", quietly = TRUE)) stop("Package 'terra' is required for raster operations")
       nc_stack <- terra::rast(nc_file)
 
       # Get the sector layer (processed files now have sector layers instead of monthly layers)
@@ -318,6 +329,7 @@ CEDSMap <- R6::R6Class(
     process_raw_ceds_file = function(nc_file) {
       tryCatch({
         # Load the raw NetCDF file
+        if (!requireNamespace("terra", quietly = TRUE)) stop("Package 'terra' is required for raster operations")
         r_kg_m2_s <- terra::rast(nc_file)
         stopifnot(unique(terra::units(r_kg_m2_s)) == "kg m-2 s-1")
 
@@ -382,6 +394,7 @@ CEDSMap <- R6::R6Class(
     #' @return Path to written NetCDF file or NULL if failed
     write_netcdf_format = function(processed_data, filename) {
       tryCatch({
+        if (!requireNamespace("terra", quietly = TRUE)) stop("Package 'terra' is required for raster operations")
         dest_file <- file.path(self$data_dir, filename)
         terra::writeCDF(processed_data, dest_file, overwrite = TRUE, split=TRUE, compress=9)
         message(paste0("Generated NetCDF: ", filename))

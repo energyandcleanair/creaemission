@@ -3,11 +3,13 @@ selected_countries <- reactiveVal(NULL)
 selected_year <- reactiveVal(NULL)
 selected_pollutant <- reactiveVal("NOx")  # Default to NOx
 
+# Bindings to satisfy linters for dplyr NSE columns
+iso3 <- NULL
+value <- NULL
+
 
 # Add this observer to update the stored selection when input changes
-observeEvent(input$country, {
-  selected_countries(input$country)
-})
+# Removed: input$country observer because country dropdown is removed
 
 observeEvent(input$year, {
   selected_year(input$year)
@@ -68,16 +70,14 @@ validate_and_update_selections <- function(new_source, new_region_type) {
     selected_pollutant(pollutant_to_use)
   }
 
-  # Validate country selection
+  # Determine internal country selection defaults (no UI)
   current_countries <- selected_countries()
   if (!is.null(current_countries)) {
     # Keep only countries that are available in the new source
     valid_countries <- current_countries[current_countries %in% available_countries]
     if (length(valid_countries) > 0) {
-      # Keep valid countries
       countries_to_use <- valid_countries
     } else {
-      # Use "all" as default for national, first country for provincial
       if (new_region_type == creaemission::REGIONTYPE_NATIONAL) {
         countries_to_use <- "all"
       } else {
@@ -85,7 +85,6 @@ validate_and_update_selections <- function(new_source, new_region_type) {
       }
     }
   } else {
-    # No previous selection, use defaults
     if (new_region_type == creaemission::REGIONTYPE_NATIONAL) {
       countries_to_use <- "all"
     } else {
@@ -95,7 +94,6 @@ validate_and_update_selections <- function(new_source, new_region_type) {
 
   # Update stored selections
   selected_countries(countries_to_use)
-
 
   return(list(
     year = year_to_use,
@@ -115,7 +113,7 @@ observeEvent(input$source, {
   # Update UI inputs with validated selections
   updateSelectInput(session, "year", selected = validated_selections$year)
   updateSelectInput(session, "pollutant", selected = validated_selections$pollutant)
-  updateSelectInput(session, "country", selected = validated_selections$countries)
+  # Removed: updateSelectInput for country (no country UI)
 })
 
 # Observer for region type changes
@@ -129,7 +127,7 @@ observeEvent(input$region_type, {
   # Update UI inputs with validated selections
   updateSelectInput(session, "year", selected = validated_selections$year)
   updateSelectInput(session, "pollutant", selected = validated_selections$pollutant)
-  updateSelectInput(session, "country", selected = validated_selections$countries)
+  # Removed: updateSelectInput for country (no country UI)
 })
 
 # Download Handlers ----------------------------------
@@ -148,7 +146,6 @@ output$download_csv <- downloadHandler(
 emissions_raw <- reactive({
 
   req(input$region_type)
-  req(input$country)
   req(input$source)
   req(input$pollutant)
   topn <- input$topn
@@ -172,7 +169,22 @@ emissions_raw <- reactive({
   }
 
   # Adjust isos
-  iso3s <- input$country
+  iso3s <- selected_countries()
+  if (is.null(iso3s)) {
+    # Default when not yet set
+    available_data <- source_obj$list_available_data()
+    available_countries <- available_data %>%
+      distinct(iso3) %>%
+      filter(iso3 != "world") %>%
+      pull(iso3)
+    if (input$region_type == creaemission::REGIONTYPE_NATIONAL) {
+      iso3s <- "all"
+    } else {
+      iso3s <- available_countries[1]
+    }
+    selected_countries(iso3s)
+  }
+
   if(!is.null(iso3s) & ("all" %in% iso3s)){
     # Get latest year from available data
     available_data <- source_obj$list_available_data()
@@ -214,7 +226,6 @@ emissions_raw <- reactive({
 
 
 emissions <- reactive({
-  req(input$country)
   req(input$chart_type)
   req(emissions_raw())
 
@@ -229,7 +240,7 @@ emissions <- reactive({
   # Aggregate
   group_cols <- c(input$group_by, input$color_by, "year", "region_name")
   e <- e %>%
-    filter(("all" %in% input$country & iso3 != "world") | iso3 %in% input$country) %>%
+    filter(("all" %in% selected_countries() & iso3 != "world") | iso3 %in% selected_countries()) %>%
     group_by_at(group_cols) %>%
     summarise(value = sum(value, na.rm = TRUE)) %>%
     ungroup()
@@ -244,7 +255,7 @@ output$selectTopN <- renderUI({
   numericInput("topn", "Top N:", value=20, min=1, max=100)
 })
 
-output$plot <- renderPlotly({
+output$plot <- plotly::renderPlotly({
 
   start_time <- Sys.time()
 
@@ -263,13 +274,13 @@ output$plot <- renderPlotly({
   # Check if we have data
   if (is.null(e) || nrow(e) == 0) {
     # Create an empty plot with a message
-    empty_plot <- ggplot() +
-      annotate("text", x = 0.5, y = 0.5, label = "No data available for the selected parameters",
+    empty_plot <- ggplot2::ggplot() +
+      ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No data available for the selected parameters",
                size = 6, color = "gray50") +
-      theme_void() +
-      theme(plot.background = element_rect(fill = "white"))
+      ggplot2::theme_void() +
+      ggplot2::theme(plot.background = ggplot2::element_rect(fill = "white"))
 
-    return(ggplotly(empty_plot))
+    return(plotly::ggplotly(empty_plot))
   }
 
   # Assert that all units start with kt or Gg
@@ -305,7 +316,7 @@ output$plot <- renderPlotly({
 
     colourCount = length(unique(e_plt[[color_by]]))
     # getPalette = colorRampPalette(rcrea::pal_crea)
-    getPalette = colorRampPalette(brewer.pal(12, "Paired"))
+    getPalette = colorRampPalette(RColorBrewer::brewer.pal(12, "Paired"))
 
     # Clean and truncate long names for better tooltip display
     e_plt <- e_plt %>%
@@ -325,14 +336,14 @@ output$plot <- renderPlotly({
       )
 
     plt <- e_plt %>%
-      ggplot(aes(value, group)) +
-       geom_bar(aes(fill=reorder(color_label, value), text=paste(paste0(color_display), sprintf("%.2f kt", value), sep="\n")), stat="identity") +
+      ggplot2::ggplot(ggplot2::aes(value, group)) +
+       ggplot2::geom_bar(ggplot2::aes(fill=reorder(color_label, value), text=paste(paste0(color_display), sprintf("%.2f kt", value), sep="\n")), stat="identity") +
        rcrea::theme_crea_new() +
-       scale_x_continuous(expand = expansion(mult=c(0, 0.1)),
+       ggplot2::scale_x_continuous(expand = ggplot2::expansion(mult=c(0, 0.1)),
                            labels = scales::comma_format(suffix=unit_suffix)) +
-      scale_fill_manual(values = getPalette(colourCount),
+      ggplot2::scale_fill_manual(values = getPalette(colourCount),
                         name=NULL) +
-       labs(caption=paste0("Source: CREA analysis based on ", input$source, "."),
+       ggplot2::labs(caption=paste0("Source: CREA analysis based on ", input$source, "."),
             y=NULL,
             x=NULL)
   }
@@ -363,7 +374,7 @@ output$plot <- renderPlotly({
     e_plt$group <- factor(e_plt$group, levels=topn_groups)
 
     colourCount = length(unique(e_plt[[color_by]]))
-    getPalette = colorRampPalette(brewer.pal(12, "Paired"))
+    getPalette = colorRampPalette(RColorBrewer::brewer.pal(12, "Paired"))
 
     # Clean and truncate long names for better tooltip display
     e_plt <- e_plt %>%
@@ -386,17 +397,17 @@ output$plot <- renderPlotly({
     plt <- e_plt %>%
       mutate(color_label = reorder(color_label, value)) %>%
       ungroup() %>%
-      ggplot(aes(year, value)) +
-      geom_area(aes(fill=color_label)) +
+      ggplot2::ggplot(ggplot2::aes(year, value)) +
+      ggplot2::geom_area(ggplot2::aes(fill=color_label)) +
       rcrea::theme_crea_new() +
-      scale_y_continuous(expand = expansion(mult=c(0, 0.1)),
+      ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult=c(0, 0.1)),
                          labels = scales::comma_format(suffix=unit_suffix)) +
-      scale_fill_manual(values = getPalette(colourCount),
+      ggplot2::scale_fill_manual(values = getPalette(colourCount),
                         name=NULL) +
-      labs(caption=paste0("Source: CREA analysis based on ", input$source, "."),
+      ggplot2::labs(caption=paste0("Source: CREA analysis based on ", input$source, "."),
            y=NULL,
            x=NULL) +
-      facet_wrap(~group, scales="free")
+      ggplot2::facet_wrap(~group, scales="free")
 
   }
 
@@ -408,11 +419,11 @@ output$plot <- renderPlotly({
   }
 
   plotly_plot <- if(chart_type == "barh") {
-    ggplotly(plt, tooltip="text") %>%
+    plotly::ggplotly(plt, tooltip="text") %>%
       reverse_legend_labels()
   } else if(chart_type == "area") {
 
-    ggplotly(plt) %>%
+    plotly::ggplotly(plt) %>%
       reverse_legend_labels() %>%
       fix_ggplotly_facets(
         hgap = 0.05,
@@ -471,71 +482,7 @@ output$selectYear <- renderUI({
   return(NULL)
 })
 
-output$selectCountry <- renderUI({
-  req(input$region_type)
-  req(input$source)
-
-  # Get current source object
-  source_obj <- current_source()
-
-  multiple = (input$region_type==creaemission::REGIONTYPE_NATIONAL)
-
-  if(input$region_type==creaemission::REGIONTYPE_NATIONAL){
-    # Get countries from source
-    available_data <- source_obj$list_available_data()
-
-    countries <- available_data %>%
-      distinct(iso3) %>%
-      mutate(country = creaemission::iso3_to_country(iso3)) %>%
-      filter(iso3!="world", !is.na(country)) %>%
-      arrange(country) %>%
-      distinct(country, iso3) %>%
-      # Transformed to named vector iso=country
-      tibble::deframe()
-    countries <- c("All"="all", "World"="world", countries)
-
-    # Get previously selected countries that are still available
-    prev_selected <- selected_countries()
-    if(!is.null(prev_selected)) {
-      # Keep only countries that are still available in the new source
-      valid_selected <- prev_selected[prev_selected %in% countries]
-      if(length(valid_selected) > 0) {
-        selected <- valid_selected
-      } else {
-        selected <- 'all'
-      }
-    } else {
-      selected <- 'all'
-    }
-
-    selectInput('country', 'Country', choices = countries, multiple=multiple, selected=selected)
-  } else {
-    # Get provincial countries from source
-    available_data <- source_obj$list_available_data()
-
-    countries <- available_data %>%
-      distinct(iso3) %>%
-      mutate(country = creaemission::iso3_to_country(iso3)) %>%
-      distinct(country, iso3) %>%
-      tibble::deframe()
-
-    # Get previously selected country if still available
-    prev_selected <- selected_countries()
-    if(!is.null(prev_selected)) {
-      # Keep only countries that are still available in the new source
-      valid_selected <- prev_selected[prev_selected %in% countries]
-      if(length(valid_selected) > 0) {
-        selected <- valid_selected
-      } else {
-        selected <- countries[[1]]
-      }
-    } else {
-      selected <- countries[[1]]
-    }
-
-    selectInput('country', 'Country', choices = countries, multiple=multiple, selected=selected)
-  }
-})
+# Removed: output$selectCountry renderUI (country dropdown removed)
 
 
 output$selectPollutant <- renderUI({

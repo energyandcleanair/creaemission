@@ -34,6 +34,9 @@ RUN find /app/inst -xtype l -exec rm -f {} + || true
 RUN R -e "install.packages('remotes', repos='https://cloud.r-project.org')"
 RUN R -e "remotes::install_local('/app', dependencies = TRUE, upgrade = 'never')"
 
+# Prebuild lightweight available_data caches (optional)
+RUN  R -f /app/inst/scripts/prebuild_available_data.R
+
 # Install TiTiler in an isolated virtual environment (avoid PEP 668 issues)
 RUN python3 -m venv /opt/titiler-venv \
  && /opt/titiler-venv/bin/pip install --upgrade pip setuptools wheel \
@@ -49,7 +52,7 @@ COPY supervisord.conf /etc/supervisor/supervisord.conf
 COPY nginx.conf /etc/nginx/nginx.conf
 
 # Make scripts executable
-RUN chmod +x /app/start_titiler_service.sh
+RUN chmod +x /app/start_titiler_service.sh /app/start_shiny_app.sh
 
 EXPOSE 8080 8001
 

@@ -129,6 +129,7 @@ EDGARMap <- R6::R6Class(
     #' @param pollutant Optional pollutant filter
     #' @return Data frame with available pollutant/sector/year combinations
     list_available_data = function(year = NULL, sector = NULL, pollutant = NULL) {
+      # Remove verbose performance logging
       if (!dir.exists(self$data_dir)) {
         return(data.frame(
           pollutant = character(),
@@ -138,8 +139,15 @@ EDGARMap <- R6::R6Class(
         ))
       }
 
+      # Try prebuilt cache (no filters only)
+      if (is.null(pollutant) && is.null(year) && is.null(sector)) {
+        cache_file <- file.path(get_project_root(), "inst", "cache", "available_data", "edgar_map.rds")
+        if (file.exists(cache_file)) return(readRDS(cache_file))
+      }
+
       # Get all COG TIFF files
       tif_files <- list.files(self$data_dir, pattern = "_wld\\.tif$", full.names = TRUE)
+      message(glue::glue("EDGAR map: scanning data_dir={self$data_dir}, tif_found={length(tif_files)}"))
 
       if (length(tif_files) == 0) {
         return(data.frame(
@@ -248,6 +256,7 @@ EDGARMap <- R6::R6Class(
       }
 
       # Load the processed NetCDF file
+      if (!requireNamespace("terra", quietly = TRUE)) stop("Package 'terra' is required for raster operations")
       nc_stack <- terra::rast(nc_file)
 
       # Get the sector layer (processed files now have sector layers)
@@ -263,6 +272,7 @@ EDGARMap <- R6::R6Class(
       # Crop to country if specified
       if (iso3 != "wld") {
         iso2 <- countrycode::countrycode(iso3, "iso3c", "iso2c")
+        if (!requireNamespace("terra", quietly = TRUE)) stop("Package 'terra' is required for raster operations")
         country_boundaries <- terra::vect(creahelpers::get_adm(level = 0, res = "low", iso2s = iso2))
 
         if (!is.null(country_boundaries)) {
@@ -561,6 +571,7 @@ EDGARMap <- R6::R6Class(
       tryCatch({
         # Create processed filename: pollutant_year.nc
         processed_filename <- paste0(processed_info$pollutant, "_", processed_info$year, ".nc")
+        if (!requireNamespace("terra", quietly = TRUE)) stop("Package 'terra' is required for raster operations")
         dest_file <- file.path(self$data_dir, processed_filename)
 
         # Save the processed raster stack with units

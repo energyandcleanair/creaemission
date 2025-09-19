@@ -18,7 +18,7 @@ tabPanel("Charts",
                            multiple=F),
              selectInput("chart_type", "Chart type:", multiple=F, choices = chart_types, selected=chart_types[1]),
              uiOutput("selectYear"),
-             uiOutput("selectCountry"),
+             
              uiOutput("selectPollutant"),
              uiOutput("selectColorBy"),
              uiOutput("selectGroupBy"),
@@ -29,7 +29,7 @@ tabPanel("Charts",
            mainPanel(
              width=10,
              htmlOutput("message", class="msg"),
-             plotlyOutput("plot", height='calc(100vh - 80px)') %>% withSpinner(color="#8cc9D0")
+            plotly::plotlyOutput("plot", height='calc(100vh - 80px)') %>% shinycssloaders::withSpinner(color="#8cc9D0")
            )
          )
 )

@@ -92,9 +92,21 @@ EDGARNational <- R6::R6Class(
     #' @param pollutant Optional pollutant filter
     #' @return Data frame with available pollutant/sector/year combinations
     list_available_data = function(year = NULL, sector = NULL, pollutant = NULL) {
+      # Reduced logging for production
+
+      # Try prebuilt cache (no filters only)
+      if (is.null(pollutant) && is.null(year) && is.null(sector) && is.null(self$available_data_cache)) {
+        cache_file <- file.path(get_project_root(), "inst", "cache", "available_data", "edgar_national.rds")
+        if (file.exists(cache_file)) {
+          # message("EDGAR national: loading prebuilt available_data cache")
+          self$available_data_cache <- readRDS(cache_file)
+          return(self$available_data_cache)
+        }
+      }
 
       # Check cache first - if we have cached data and no filters, return it immediately
       if (!is.null(self$available_data_cache) && is.null(pollutant) && is.null(year) && is.null(sector)) {
+        message(glue::glue("EDGAR national: list_available_data cache hit rows={nrow(self$available_data_cache)}"))
         return(self$available_data_cache)
       }
 
@@ -112,6 +124,7 @@ EDGARNational <- R6::R6Class(
 
       # Get all RDS files and extract years from filenames
       rds_files <- list.files(by_year_dir, pattern = "\\.rds$", full.names = TRUE)
+      message(glue::glue("EDGAR national: scanning by_year_dir={by_year_dir}, files_found={length(rds_files)}"))
 
       if (length(rds_files) == 0) {
         return(data.frame(
@@ -128,6 +141,7 @@ EDGARNational <- R6::R6Class(
 
       # Read only ONE file to get the structure (sectors, pollutants, iso3 are the same across years)
       sample_file <- rds_files[1]
+      message(glue::glue("EDGAR national: reading sample file {basename(sample_file)} to infer structure"))
 
       tryCatch({
         sample_data <- readRDS(sample_file)

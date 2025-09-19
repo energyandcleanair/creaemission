@@ -29,7 +29,7 @@ tabPanel("Maps",
            mainPanel(
              width=10,
              class="no-padding",
-             leafletOutput("map", height='calc(100vh - 50px)') %>% withSpinner(color="#8cc9D0"),
+            leafletOutput("map", height='calc(100vh - 50px)') %>% shinycssloaders::withSpinner(color="#8cc9D0"),
            )
          )
 )

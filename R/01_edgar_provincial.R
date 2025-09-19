@@ -122,8 +122,21 @@ EDGARProvincial <- R6::R6Class(
     #' @param pollutant Optional pollutant filter
     #' @return Data frame with available pollutant/sector/year/iso3 combinations
     list_available_data = function(year = NULL, sector = NULL, pollutant = NULL) {
+      # Reduced logging for production
+
+      # Try prebuilt cache (no filters only)
+      if (is.null(pollutant) && is.null(year) && is.null(sector) && is.null(self$available_data_cache)) {
+        cache_file <- file.path(get_project_root(), "inst", "cache", "available_data", "edgar_provincial.rds")
+        if (file.exists(cache_file)) {
+          message("EDGAR provincial: loading prebuilt available_data cache")
+          self$available_data_cache <- readRDS(cache_file)
+          return(self$available_data_cache)
+        }
+      }
+
       # Check cache first - if we have cached data and no filters, return it immediately
       if (!is.null(self$available_data_cache) && is.null(pollutant) && is.null(year) && is.null(sector)) {
+        message(glue::glue("EDGAR provincial: list_available_data cache hit rows={nrow(self$available_data_cache)}"))
         return(self$available_data_cache)
       }
 
@@ -139,6 +152,7 @@ EDGARProvincial <- R6::R6Class(
 
       # Get all RDS files in provincial data directory
       rds_files <- list.files(self$data_dir, pattern = "\\.rds$", full.names = TRUE)
+      message(glue::glue("EDGAR provincial: scanning data_dir={self$data_dir}, files_found={length(rds_files)}"))
 
       if (length(rds_files) == 0) {
         return(data.frame(
@@ -170,6 +184,7 @@ EDGARProvincial <- R6::R6Class(
 
       # Read only ONE file to get the structure (sectors, pollutants, years are the same across countries)
       sample_file <- rds_files[1]
+      message(glue::glue("EDGAR provincial: reading sample file {basename(sample_file)} to infer structure"))
 
       tryCatch({
         sample_data <- readRDS(sample_file)
@@ -446,6 +461,7 @@ EDGARProvincial <- R6::R6Class(
           sector <- parts[6]  # RCO
 
           # Read netCDF file
+          if (!requireNamespace("terra", quietly = TRUE)) stop("Package 'terra' is required for raster operations")
           r_tonnes <- terra::rast(nc_file) %>%
             terra::crop(vect)
 
@@ -478,6 +494,7 @@ EDGARProvincial <- R6::R6Class(
 
       # 2- Extract data once from the combined stack
       message("Extracting zonal statistics from combined EDGAR stack...")
+      if (!requireNamespace("terra", quietly = TRUE)) stop("Package 'terra' is required for raster operations")
       zonal_results <- terra::extract(combined_stack, terra::makeValid(vect), fun=sum, ID=TRUE, exact=TRUE, weights=TRUE)
 
       # 3- Process results
@@ -519,6 +536,27 @@ EDGARProvincial <- R6::R6Class(
 
       message(glue::glue("EDGAR extraction complete. Processed {nrow(emissions)} records from {length(stack_list)} files."))
       return(emissions)
+    },
+
+    #' @description Get province boundaries from map source
+    #' @param iso2 ISO2 country code
+    #' @param level Administrative level
+    #' @param res Resolution
+    #' @param buffer_into_sea_km Buffer distance into sea in km
+    #' @return Terra vector with province boundaries
+    get_province_boundaries = function(iso2, level = 1, res = "low", buffer_into_sea_km = 20) {
+      message(glue::glue("Getting province boundaries for {iso2}"))
+
+      # Use creahelpers to get administrative boundaries
+      if (!requireNamespace("terra", quietly = TRUE)) stop("Package 'terra' is required for provincial boundaries")
+      vect <- terra::vect(creahelpers::get_adm(level = level, res = res, iso2s = iso2))
+
+      # Buffer into sea if requested
+      if (buffer_into_sea_km > 0) {
+        vect <- self$buffer_into_sea(vect, id_col = glue::glue("GID_{level}"), buffer_into_sea_km)
+      }
+
+      return(vect)
     }
   )
 )

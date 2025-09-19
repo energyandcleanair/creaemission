@@ -13,11 +13,9 @@ Imports:
     R6,
     dplyr,
     tidyr,
-    terra,
     lubridate,
     glue,
     stringr,
-    ncdf4,
     pbapply,
     scales,
     plotly,
@@ -44,4 +42,6 @@ Remotes:
 Suggests: 
     testthat (>= 3.0.0),
     knitr,
-    rmarkdown
+    rmarkdown,
+    terra,
+    ncdf4
