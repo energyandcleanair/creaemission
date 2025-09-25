@@ -42,7 +42,6 @@ gcloud run deploy $SERVICE_NAME \
   --cpu 2 \
   --cpu-boost \
   --timeout 3600 \
-  --startup-probe=httpGet.path=/ready,httpGet.port=8080,periodSeconds=2,timeoutSeconds=2,failureThreshold=120 \
   --min-instances 0 \
   --max-instances 2
 ```
