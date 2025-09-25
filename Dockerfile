@@ -21,18 +21,29 @@ RUN apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Install TiTiler in an isolated virtual environment (avoid PEP 668 issues)
+RUN python3 -m venv /opt/titiler-venv \
+ && /opt/titiler-venv/bin/pip install --upgrade pip setuptools wheel \
+ && /opt/titiler-venv/bin/pip install "uvicorn[standard]" titiler
+
 # Set working directory
 WORKDIR /app
 
 # Copy the whole project (including data for testing)
-COPY . /app/
+COPY DESCRIPTION .
+COPY NAMESPACE .
 
 # Clean up any dangling symlinks in inst/ that can break package install
 RUN find /app/inst -xtype l -exec rm -f {} + || true
 
 # Install pak (faster dependency resolution/installs) and install local package
 RUN R -e "install.packages('remotes', repos='https://cloud.r-project.org')"
-RUN R -e "remotes::install_local('/app', dependencies = TRUE, upgrade = 'never')"
+RUN R -e 'remotes::install_deps(".", dependencies = TRUE, upgrade = "never")'
+
+COPY . .
+
+RUN R -e "remotes::install_local('/app', dependencies = FALSE, upgrade = 'never')"
+
 
 # Prebuild lightweight available_data caches (optional)
 RUN  R -f /app/inst/scripts/prebuild_available_data.R
@@ -49,11 +60,6 @@ RUN echo "=== DOCKER BUILD DEBUG ===" && \
         echo "✗ loading.html NOT found"; \
     fi && \
     echo "=== END DOCKER BUILD DEBUG ==="
-
-# Install TiTiler in an isolated virtual environment (avoid PEP 668 issues)
-RUN python3 -m venv /opt/titiler-venv \
- && /opt/titiler-venv/bin/pip install --upgrade pip setuptools wheel \
- && /opt/titiler-venv/bin/pip install "uvicorn[standard]" titiler
 
 # Ensure venv binaries are on PATH at runtime
 ENV PATH="/opt/titiler-venv/bin:${PATH}"
