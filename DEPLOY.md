@@ -28,7 +28,7 @@ Set these environment variables for staging deployment:
 ```bash
 export PROJECT_ID="crea-aq-data"
 export REGION="europe-west1"
-export SERVICE_NAME="emissiondashboard-staging"
+export SERVICE_NAME="emissiondashboard"
 
 # Deploy using Cloud Build (automatically builds and deploys)
 gcloud run deploy $SERVICE_NAME \
