@@ -78,6 +78,7 @@ create_data_symlink <- function() {
 #' @param max_instances Maximum number of instances (default: 10)
 #' @param timeout Request timeout in seconds (default: 3600)
 #' @param allow_unauthenticated Whether to allow unauthenticated access (default: TRUE)
+#' @param development_mode If TRUE, use development .gcloudignore for faster deployments (default: FALSE)
 #' @param dry_run If TRUE, only show the command without executing (default: FALSE)
 #'
 #' @return Invisible NULL, called for side effects
@@ -98,6 +99,9 @@ create_data_symlink <- function() {
 #'
 #' # Dry run to see command
 #' deploy_cloudrun(dry_run = TRUE)
+#'
+#' # Development mode (much faster, limited data)
+#' deploy_cloudrun(development_mode = TRUE)
 #' }
 deploy_cloudrun <- function(project_id = "crea-aq-data",
                            region = "europe-west1",
@@ -114,11 +118,30 @@ deploy_cloudrun <- function(project_id = "crea-aq-data",
                            startup_timeout_seconds = 2,
                            startup_failure_threshold = 120,
                            cpu_boost = TRUE,
+                           development_mode = FALSE,
                            dry_run = FALSE) {
 
   # Check if we're in the right directory
   if (!file.exists("creaemission.Rproj")) {
     stop("This function must be run from the package root directory (where creaemission.Rproj is located)")
+  }
+
+  # Handle development mode
+  original_gcloudignore <- NULL
+  if (development_mode) {
+    if (!file.exists(".gcloudignore.dev")) {
+      stop("Development mode requires .gcloudignore.dev file. Run ./scripts/create_dev_data.sh first.")
+    }
+    
+    # Backup original .gcloudignore
+    if (file.exists(".gcloudignore")) {
+      original_gcloudignore <- ".gcloudignore.backup"
+      file.copy(".gcloudignore", original_gcloudignore, overwrite = TRUE)
+    }
+    
+    # Use development .gcloudignore
+    file.copy(".gcloudignore.dev", ".gcloudignore", overwrite = TRUE)
+    message("🔧 Development mode: Using filtered data for faster deployment")
   }
 
   # Check if gcloud is available
@@ -229,6 +252,15 @@ deploy_cloudrun <- function(project_id = "crea-aq-data",
   message("  - Update service: gcloud run services update ", service_name, " --region=", region)
   message("  - Replace from YAML: gcloud run services replace <file.yaml> --region=", region)
 
+  # Restore original .gcloudignore if in development mode
+  if (development_mode && !is.null(original_gcloudignore)) {
+    if (file.exists(original_gcloudignore)) {
+      file.copy(original_gcloudignore, ".gcloudignore", overwrite = TRUE)
+      file.remove(original_gcloudignore)
+      message("🔧 Development mode: Restored original .gcloudignore")
+    }
+  }
+
   invisible(NULL)
 }
 
@@ -319,6 +351,23 @@ view_cloudrun_logs <- function(service_name = "creaemission",
   system(cmd)
 
   invisible(NULL)
+}
+
+#' Deploy in development mode (faster, limited data)
+#' 
+#' @param ... Arguments passed to deploy_cloudrun()
+#' @return Invisible NULL, called for side effects
+#' @export
+#' @examples
+#' \dontrun{
+#' # Quick development deployment
+#' deploy_dev()
+#' 
+#' # Development deployment with custom service name
+#' deploy_dev(service_name = "emissiondashboard-dev")
+#' }
+deploy_dev <- function(...) {
+  deploy_cloudrun(development_mode = TRUE, ...)
 }
 
 #' Delete Cloud Run service
