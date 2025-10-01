@@ -18,6 +18,7 @@ tabPanel("Charts",
                            multiple=F),
              selectInput("chart_type", "Chart type:", multiple=F, choices = chart_types, selected=chart_types[1]),
              uiOutput("selectYear"),
+             uiOutput("selectCountry"),
              
              uiOutput("selectPollutant"),
              uiOutput("selectColorBy"),
@@ -33,4 +34,3 @@ tabPanel("Charts",
            )
          )
 )
-
