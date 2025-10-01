@@ -9,7 +9,7 @@ tabPanel("Maps",
              uiOutput("map_pollutant_select"),
              uiOutput("map_year_select"),
              uiOutput("map_sector_select"),
-             uiOutput("map_country_select"),
+             uiOutput("map_country_select"),  # temporarily disabled
 
              selectInput("map_colormap", "Colormap:",
                         choices = c("Viridis" = "viridis",
