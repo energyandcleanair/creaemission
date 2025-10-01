@@ -139,9 +139,9 @@ init_map_tab <- function(input, output, session) {
     selected_map_sector(input$map_sector)
   })
 
-  observeEvent(input$map_country, {
-    selected_map_country(input$map_country)
-  })
+  # observeEvent(input$map_country, {
+  #   selected_map_country(input$map_country)
+  # })
 
   observeEvent(input$map_rendering, {
     selected_map_rendering(input$map_rendering)
@@ -428,7 +428,7 @@ init_map_tab <- function(input, output, session) {
     req(input$map_year)
     req(input$map_source)
     req(input$map_sector)
-    req(input$map_country)
+    # req(input$map_country)
 
     tryCatch({
       # Get the map source object
@@ -438,7 +438,7 @@ init_map_tab <- function(input, output, session) {
         pollutant = input$map_pollutant,
         sector = input$map_sector,
         year = input$map_year,
-        iso3 = input$map_country,
+        iso3 = "wld",
         prefer_cog = TRUE
       )
 
@@ -488,8 +488,8 @@ init_map_tab <- function(input, output, session) {
       input$map_pollutant,
       input$map_year,
       input$map_source,
-      input$map_sector,
-      input$map_country
+      input$map_sector
+      # input$map_country
     )
 
     # Get raster from emissions_raster function
@@ -591,7 +591,7 @@ init_map_tab <- function(input, output, session) {
     cog_path <- source_obj$get_cog_path(data$pollutant,
                                         sector_code,
                                         input$map_year,
-                                        input$map_country)
+                                        "wld")
 
     # Decide on rendering method
     rendering_method <- input$map_rendering

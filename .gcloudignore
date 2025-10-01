@@ -43,7 +43,6 @@ output/
 *.png
 *.jpg
 *.jpeg
-*.html
 *_files/
 *_multirow_files/
 *ggplotly*

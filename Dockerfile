@@ -21,26 +21,45 @@ RUN apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Install TiTiler in an isolated virtual environment (avoid PEP 668 issues)
+RUN python3 -m venv /opt/titiler-venv \
+ && /opt/titiler-venv/bin/pip install --upgrade pip setuptools wheel \
+ && /opt/titiler-venv/bin/pip install "uvicorn[standard]" titiler
+
 # Set working directory
 WORKDIR /app
 
 # Copy the whole project (including data for testing)
-COPY . /app/
+COPY DESCRIPTION .
+COPY NAMESPACE .
 
 # Clean up any dangling symlinks in inst/ that can break package install
 RUN find /app/inst -xtype l -exec rm -f {} + || true
 
 # Install pak (faster dependency resolution/installs) and install local package
 RUN R -e "install.packages('remotes', repos='https://cloud.r-project.org')"
-RUN R -e "remotes::install_local('/app', dependencies = TRUE, upgrade = 'never')"
+RUN R -e 'remotes::install_deps(".", dependencies = TRUE, upgrade = "never")'
+
+COPY . .
+
+RUN R -e "remotes::install_local('/app', dependencies = FALSE, upgrade = 'never')"
+
 
 # Prebuild lightweight available_data caches (optional)
 RUN  R -f /app/inst/scripts/prebuild_available_data.R
 
-# Install TiTiler in an isolated virtual environment (avoid PEP 668 issues)
-RUN python3 -m venv /opt/titiler-venv \
- && /opt/titiler-venv/bin/pip install --upgrade pip setuptools wheel \
- && /opt/titiler-venv/bin/pip install "uvicorn[standard]" titiler
+# Debug loading page setup
+RUN echo "=== DOCKER BUILD DEBUG ===" && \
+    echo "Contents of /app/inst/www:" && \
+    ls -la /app/inst/www/ && \
+    echo "Checking loading.html:" && \
+    if [ -f "/app/inst/www/loading.html" ]; then \
+        echo "✓ loading.html exists"; \
+        echo "File size: $(stat -c%s /app/inst/www/loading.html) bytes"; \
+    else \
+        echo "✗ loading.html NOT found"; \
+    fi && \
+    echo "=== END DOCKER BUILD DEBUG ==="
 
 # Ensure venv binaries are on PATH at runtime
 ENV PATH="/opt/titiler-venv/bin:${PATH}"
@@ -52,7 +71,7 @@ COPY supervisord.conf /etc/supervisor/supervisord.conf
 COPY nginx.conf /etc/nginx/nginx.conf
 
 # Make scripts executable
-RUN chmod +x /app/start_titiler_service.sh /app/start_shiny_app.sh
+RUN chmod +x /app/start_titiler_service.sh
 
 EXPOSE 8080 8001
 

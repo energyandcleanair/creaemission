@@ -126,7 +126,7 @@ CEDSProvincial <- R6::R6Class(
 
       # Check cache first - if we have cached data and no filters, return it immediately
       if (!is.null(self$available_data_cache) && is.null(pollutant) && is.null(year) && is.null(sector)) {
-        message(glue::glue("CEDS provincial: list_available_data cache hit rows={nrow(self$available_data_cache)}"))
+        message(sprintf("📊 CACHE: CEDS provincial cache hit - using %d rows from memory", nrow(self$available_data_cache)))
         return(self$available_data_cache)
       }
 
@@ -154,43 +154,49 @@ CEDSProvincial <- R6::R6Class(
         ))
       }
 
-      # Extract available countries from filenames (much faster than reading all files)
-      # Provincial files are typically named like: ceds_emissions_id.rds, ceds_emissions_cn.rds, etc.
-      # Handle various naming patterns and ensure clean ISO3 codes
-      available_countries <- unique(gsub(".*_emissions_([a-z]{2,3})\\.rds", "\\1", basename(rds_files)))
-      available_countries <- available_countries[available_countries != ""] # Remove any empty matches
+      # Separate files by type to avoid inferring years from a single by_year file
+      by_year_files <- rds_files[grepl("[/\\\\]by_year[/\\\\]", rds_files)]
+      country_files <- setdiff(rds_files, by_year_files)
 
-            # Additional cleanup: ensure we have valid ISO3 codes and remove any remaining file extensions
-      available_countries <- gsub("\\.rds$", "", available_countries, ignore.case = TRUE)
-      available_countries <- tolower(available_countries) # Ensure lowercase
+      # Strategy:
+      # - If by_year files exist: infer sectors+pollutants from one by_year sample, years from all by_year filenames,
+      #   and countries from the sample's iso3 column.
+      # - Else: use a country file as sample and infer countries from filenames.
+      if (length(by_year_files) > 0) {
+        # Infer years from by_year filenames
+        # Extract 4-digit year from filenames like "provincial_2020.rds"
+        years <- suppressWarnings(as.integer(gsub(".*provincial_([0-9]{4})\\.rds$", "\\1", basename(by_year_files))))
+        years <- sort(unique(stats::na.omit(years)))
 
-      # Validate that we have clean ISO3 codes (should be 2-3 lowercase letters)
-      available_countries <- available_countries[grepl("^[a-z]{2,3}$", available_countries)]
+        # Read a by_year sample file for sectors, pollutants and iso3 list
+        sample_file <- by_year_files[1]
+        message(glue::glue("CEDS provincial: reading by_year sample {basename(sample_file)} to infer structure"))
 
-      # Debug: show what we extracted
-      if (length(available_countries) > 0) {
-        message("CEDS provincial: Extracted countries: ", paste(available_countries, collapse = ", "))
-      }
+        tryCatch({
+          sample_data <- readRDS(sample_file)
 
-      # Read only ONE file to get the structure (sectors, pollutants, years are the same across countries)
-      sample_file <- rds_files[1]
-      message(glue::glue("CEDS provincial: reading sample file {basename(sample_file)} to infer structure"))
+          if (nrow(sample_data) > 0) {
+            base_sp <- sample_data %>%
+              dplyr::distinct(poll, sector) %>%
+              dplyr::rename(pollutant = poll)
 
-      tryCatch({
-        sample_data <- readRDS(sample_file)
+            available_countries <- unique(tolower(sample_data$iso3))
+            available_countries <- available_countries[!is.na(available_countries) & available_countries != ""]
 
-        if (nrow(sample_data) > 0) {
-          # Extract unique combinations from the sample file
-          base_combinations <- sample_data %>%
-            dplyr::distinct(poll, sector, year) %>%
-            dplyr::rename(pollutant = poll)
+            base_combinations <- base_sp %>% tidyr::crossing(year = years)
 
-          # Create all combinations by crossing with available countries
-          result <- base_combinations %>%
-            tidyr::crossing(iso3 = available_countries)
-
-        } else {
-          # Fallback to empty data frame
+            result <- base_combinations %>% tidyr::crossing(iso3 = available_countries)
+          } else {
+            result <- data.frame(
+              pollutant = character(),
+              sector = character(),
+              year = integer(),
+              iso3 = character(),
+              stringsAsFactors = FALSE
+            )
+          }
+        }, error = function(e) {
+          warning(glue::glue("Could not read by_year sample RDS file {sample_file}: {e$message}"))
           result <- data.frame(
             pollutant = character(),
             sector = character(),
@@ -198,18 +204,59 @@ CEDSProvincial <- R6::R6Class(
             iso3 = character(),
             stringsAsFactors = FALSE
           )
+        })
+      } else {
+        # No by_year files; fall back to country files
+        # Extract available countries from filenames (handle both patterns)
+        base_names <- basename(country_files)
+        # Pattern like: ceds_emissions_cn.rds
+        iso_from_emissions <- sub(".*_emissions_([a-z]{2,3})\\.rds$", "\\1", base_names, ignore.case = TRUE)
+        # Pattern like: cn.rds or chn.rds
+        iso_from_simple <- sub("^([a-z]{2,3})\\.rds$", "\\1", base_names, ignore.case = TRUE)
+
+        available_countries <- unique(tolower(c(iso_from_emissions, iso_from_simple)))
+        available_countries <- available_countries[grepl("^[a-z]{2,3}$", available_countries)]
+
+        if (length(country_files) == 0) {
+          result <- data.frame(
+            pollutant = character(),
+            sector = character(),
+            year = integer(),
+            iso3 = character(),
+            stringsAsFactors = FALSE
+          )
+        } else {
+          # Use a country file as the sample to infer sectors/pollutants/years
+          sample_file <- country_files[1]
+          message(glue::glue("CEDS provincial: reading country sample {basename(sample_file)} to infer structure"))
+          tryCatch({
+            sample_data <- readRDS(sample_file)
+            if (nrow(sample_data) > 0) {
+              base_combinations <- sample_data %>%
+                dplyr::distinct(poll, sector, year) %>%
+                dplyr::rename(pollutant = poll)
+              result <- base_combinations %>% tidyr::crossing(iso3 = available_countries)
+            } else {
+              result <- data.frame(
+                pollutant = character(),
+                sector = character(),
+                year = integer(),
+                iso3 = character(),
+                stringsAsFactors = FALSE
+              )
+            }
+          }, error = function(e) {
+            warning(glue::glue("Could not read country sample RDS file {sample_file}: {e$message}"))
+            result <- data.frame(
+              pollutant = character(),
+              sector = character(),
+              year = integer(),
+              iso3 = character(),
+              stringsAsFactors = FALSE
+            )
+          })
         }
-      }, error = function(e) {
-        # Fallback to empty data frame if file can't be read
-        warning(glue::glue("Could not read sample RDS file {sample_file}: {e$message}"))
-        result <- data.frame(
-          pollutant = character(),
-          sector = character(),
-          year = integer(),
-          iso3 = character(),
-          stringsAsFactors = FALSE
-        )
-      })
+      }
 
       # Apply filters if provided
       if (!is.null(pollutant)) {
