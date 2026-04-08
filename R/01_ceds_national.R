@@ -30,8 +30,8 @@ CEDSNational <- R6::R6Class(
     #' @param version Data version
     #' @param available_years Available years
     #' @param data_dir Data directory path
-    initialize = function(version = "v_2024_04_01",
-                          available_years = 2000:2022,
+    initialize = function(version = "v_2025_03_18",
+                          available_years = seq(2000, CEDS_MAX_YEAR),
                           data_dir = NULL) {
       # Use path resolution if data_dir is not provided
       if (is.null(data_dir)) {
@@ -41,7 +41,7 @@ CEDSNational <- R6::R6Class(
       super$initialize(data_dir = data_dir)
       self$version <- version
       self$available_years <- available_years
-      self$base_url <- "https://zenodo.org/records/10904361"
+      self$base_url <- "https://zenodo.org/records/15059443"
       self$cache_dir <- get_cache_folder("ceds")
 
       # Create directories if they don't exist
@@ -355,7 +355,7 @@ CEDSNational <- R6::R6Class(
                              names_to = "year", values_to = "value") %>%
           dplyr::mutate(year = as.numeric(gsub("X", "", year))) %>%
           dplyr::rename(poll = em, iso3 = country) %>%
-          dplyr::filter(year >= min_year) %>%
+          dplyr::filter(year >= min_year, year <= max(self$available_years)) %>%
           dplyr::mutate(source = "CEDS")
       }
 

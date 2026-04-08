@@ -56,7 +56,7 @@ EDGARMap <- R6::R6Class(
     #' @param available_years Available years
     #' @param data_dir Data directory path
     initialize = function(version = "v8.1",
-                          available_years = 2000:2022,
+                          available_years = seq(2000, EDGAR_MAX_YEAR),
                           data_dir = NULL) {
       # Use path resolution if data_dir is not provided
       if (is.null(data_dir)) {
@@ -91,6 +91,12 @@ EDGARMap <- R6::R6Class(
       # Use all available years if years is NULL
       if (is.null(years)) {
         years <- self$available_years
+      } else {
+        years <- clamp_source_build_years(years, self$available_years, "EDGAR map")
+        if (length(years) == 0) {
+          message("EDGAR map: no valid years to build")
+          return(invisible(character(0)))
+        }
       }
 
       # Step 1: Download raw NetCDF files

@@ -35,12 +35,13 @@ output$about <- renderUI({
    
    <p>Learn more about CEDS: <a href='https://github.com/JGCRI/CEDS/' target='_blank'>CEDS GitHub Repository</a></p>
 
-   <p>Gridded emissions are based on the version v_2024_11_25 of <a href='https://rcdtn1.pnl.gov/data/CEDS/CEDS_release-v_2024_11_25/gridded_emissions/' target='_blank'>CEDS Gridded Data</a>.</p>
+   <p>National totals use CEDS v_2025_03_18 (<a href='https://zenodo.org/records/15059443' target='_blank'>Zenodo</a>). Gridded emissions use v_2025_04_18 from <a href='https://rcdtn1.pnl.gov/data/CEDS/CEDS_release-v_2025_04_18/gridded_emissions/bulk_emissions/fine_grids/' target='_blank'>CEDS gridded data (fine grids)</a>. In this portal, CEDS national and gridded layers follow calendar years 2000–2023.</p>
    
    <h3>About EDGAR</h3>
    <p>The Emissions Database for Global Atmospheric Research (EDGAR) is a global emission inventory covering greenhouse gases and air pollutants from 1970 to present. EDGAR is developed by the European Commission's Joint Research Centre.</p>
    
    <p>Learn more about EDGAR: <a href='https://edgar.jrc.ec.europa.eu/dataset_ap81' target='_blank'>EDGAR v8.1 Global Air Pollutant Emissions</a></p>
+   <p>EDGAR v8.1 air pollutant national and gridded data in this portal end in <strong>2022</strong>. Map and provincial views switch between inventories; only years available for the selected source are shown.</p>
    
 
   ")

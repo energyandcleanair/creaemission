@@ -21,8 +21,8 @@ CEDSMap <- R6::R6Class(
     #' @param version Data version
     #' @param available_years Available years
     #' @param data_dir Data directory path
-    initialize = function(version = "2024_11_25",
-                          available_years = 2000:2022,
+    initialize = function(version = "2025_04_18",
+                          available_years = seq(2000, CEDS_MAX_YEAR),
                           data_dir = NULL) {
       # Use path resolution if data_dir is not provided
       if (is.null(data_dir)) {
@@ -53,6 +53,12 @@ CEDSMap <- R6::R6Class(
       # Use all available years if years is NULL
       if (is.null(years)) {
         years <- self$available_years
+      } else {
+        years <- clamp_source_build_years(years, self$available_years, "CEDS map")
+        if (length(years) == 0) {
+          message("CEDS map: no valid years to build")
+          return(invisible(list()))
+        }
       }
 
       # Download raw files to cache
@@ -257,8 +263,10 @@ CEDSMap <- R6::R6Class(
       }
 
       # Construct URL based on pollutant and year
-      # https://rcdtn1.pnl.gov/data/CEDS/CEDS_release-v_2024_11_25/gridded_emissions/bulk_emissions/fine_grids/SO2/SO2-em-anthro_input4MIPs_emissions_CMIP_CEDS-CMIP-2024-11-25_gn_202201-202212.nc
-      url <- glue("https://rcdtn1.pnl.gov/data/CEDS/CEDS_release-v_{gsub('-','_',self$version)}/gridded_emissions/bulk_emissions/fine_grids/{pollutant}/{pollutant}-em-anthro_input4MIPs_emissions_CMIP_CEDS-CMIP-{gsub('_','-',self$version)}_gn_{year}01-{year}12.nc")
+      # v_2025_04_18+ use _gr_; earlier releases (e.g. v_2024_11_25) used _gn_
+      # https://rcdtn1.pnl.gov/data/CEDS/CEDS_release-v_2025_04_18/gridded_emissions/bulk_emissions/fine_grids/SO2/SO2-em-anthro_input4MIPs_emissions_CMIP_CEDS-CMIP-2025-04-18_gr_202301-202312.nc
+      grid_token <- if (self$version >= "2025_04_18") "gr" else "gn"
+      url <- glue("https://rcdtn1.pnl.gov/data/CEDS/CEDS_release-v_{gsub('-','_',self$version)}/gridded_emissions/bulk_emissions/fine_grids/{pollutant}/{pollutant}-em-anthro_input4MIPs_emissions_CMIP_CEDS-CMIP-{gsub('_','-',self$version)}_{grid_token}_{year}01-{year}12.nc")
 
       dest_file <- file.path(cache_dir, glue::glue("{pollutant}_{year}_v{self$version}.nc"))
 

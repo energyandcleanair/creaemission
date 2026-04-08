@@ -27,8 +27,8 @@ CEDSProvincial <- R6::R6Class(
     #' @param version Data version
     #' @param available_years Available years
     #' @param data_dir Data directory path
-    initialize = function(version = "2024_11_25",
-                          available_years = 2000:2022,
+    initialize = function(version = "2025_04_18",
+                          available_years = seq(2000, CEDS_MAX_YEAR),
                           data_dir = NULL) {
       # Use path resolution if data_dir is not provided
       if (is.null(data_dir)) {
@@ -87,6 +87,12 @@ CEDSProvincial <- R6::R6Class(
       # Use all available years if years is NULL
       if (is.null(years)) {
         years <- self$available_years
+      } else {
+        years <- clamp_source_build_years(years, self$available_years, "CEDS provincial")
+        if (length(years) == 0) {
+          message("CEDS provincial: no valid years to build")
+          return(invisible(NULL))
+        }
       }
 
       # Extract provincial data

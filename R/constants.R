@@ -3,6 +3,10 @@ SOURCE_CEDS <- "CEDS"
 SOURCE_EDGAR <- "EDGAR"
 SOURCES <- c(SOURCE_CEDS, SOURCE_EDGAR)
 
+# Default ceiling for `available_years` in CEDS vs EDGAR source classes (national, map, provincial).
+CEDS_MAX_YEAR <- 2023L
+EDGAR_MAX_YEAR <- 2022L
+
 # Region types
 REGIONTYPE_NATIONAL <- "national"
 REGIONTYPE_PROVINCIAL <- "provincial"
