@@ -16,15 +16,15 @@ build_data <- function(min_year = 2000,
   # Build CEDS data if requested
   if ("CEDS" %in% sources) {
     message("Building CEDS emissions data...")
-    # ceds <- CEDSNational$new()
-    # ceds$build(min_year = min_year)
-    # results$CEDS <- ceds
+    ceds <- CEDSNational$new()
+    ceds$build(min_year = min_year)
+    results$CEDS <- ceds
 
     # Build provincial if requested
     if (build_provincial) {
       message("Building CEDS provincial emissions data...")
       ceds_provincial <- CEDSProvincial$new()
-      # ceds_provincial$build(iso2s = provincial_iso2s, years = ceds_provincial_years)
+      ceds_provincial$build(iso2s = provincial_iso2s, years = ceds_provincial_years)
 
       # Build maps if requested
       if (build_maps) {
@@ -38,14 +38,14 @@ build_data <- function(min_year = 2000,
   if ("EDGAR" %in% sources) {
     message("Building EDGAR emissions data...")
     edgar <- EDGARNational$new()
-    # edgar$build(min_year = min_year)
-    # results$EDGAR <- edgar
+    edgar$build(min_year = min_year)
+    results$EDGAR <- edgar
 
     # Build provincial if requested
     if (build_provincial) {
       message("Building EDGAR provincial emissions data...")
       edgar_provincial <- EDGARProvincial$new()
-      # edgar_provincial$build(iso2s = provincial_iso2s, years = edgar_provincial_years)
+      edgar_provincial$build(iso2s = provincial_iso2s, years = edgar_provincial_years)
 
       # Build maps if requested
       if (build_maps) {
