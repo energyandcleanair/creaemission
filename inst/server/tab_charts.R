@@ -442,8 +442,8 @@ output$plot <- plotly::renderPlotly({
       mutate(
         # Clean the color names using utility functions
         color_clean = case_when(
-          color_by == "sector" ~ clean_sector_name(color),
-          color_by == "fuel" ~ clean_fuel_name(color),
+          color_by == "sector" ~ creaemission::clean_sector_name(color),
+          color_by == "fuel" ~ creaemission::clean_fuel_name(color),
           TRUE ~ color
         ),
         # Truncate very long names to prevent popup overflow
