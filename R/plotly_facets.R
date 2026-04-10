@@ -271,4 +271,46 @@ fix_ggplotly_facets <- function(fig,
   fig
 }
 
+#' Per-vertex hover text for ggplotly stacked areas
+#'
+#' `geom_area` does not support a `text` aesthetic in recent ggplot2; adding it
+#' breaks conversion to plotly. `ggplotly(..., tooltip = "text")` also drops
+#' filled traces. This helper sets `text` on each `fill = "toself"` trace from
+#' the polygon vertices so the year matches the hovered position (not only the
+#' first year in the series).
+#'
+#' @param fig A plotly object from [ggplotly()] with stacked areas.
+#' @param unit_suffix Suffix for the numeric y value in the tooltip (e.g. `"kt"`).
+#' @return The modified plotly object.
+#' @export
+patch_plotly_stacked_area_hover <- function(fig, unit_suffix = "kt") {
+  if (is.null(fig$x$data)) {
+    return(fig)
+  }
+  for (i in seq_along(fig$x$data)) {
+    d <- fig$x$data[[i]]
+    if (!is.list(d) || !identical(d$fill, "toself")) {
+      next
+    }
+    if (is.null(d$x) || length(d$x) == 0L) {
+      next
+    }
+    xn <- suppressWarnings(as.numeric(d$x))
+    yn <- suppressWarnings(as.numeric(d$y))
+    yr <- as.integer(round(xn))
+    nm <- d$name
+    if (is.null(nm) || !nzchar(as.character(nm)[1])) {
+      nm <- ""
+    } else {
+      nm <- trimws(as.character(nm)[1])
+    }
+    fig$x$data[[i]]$text <- paste0(
+      "Year: ", yr, "<br>", nm, ": ",
+      sprintf("%.2f %s", yn, unit_suffix)
+    )
+    fig$x$data[[i]]$hoverinfo <- "text"
+  }
+  fig
+}
+
 
