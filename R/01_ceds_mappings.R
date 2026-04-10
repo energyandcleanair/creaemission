@@ -150,16 +150,6 @@ CEDS_NATIONAL_SECTOR_GROUP_MAPPING <- c(
 )
 
 # =============================================================================
-# CEDS PROVINCIAL MAPPINGS
-# =============================================================================
-
-# Raw sector codes to readable sector names
-CEDS_PROVINCIAL_SECTOR_MAPPING <- CEDS_NATIONAL_SECTOR_MAPPING
-
-# Readable sector names to sector groups (same as national)
-CEDS_PROVINCIAL_SECTOR_GROUP_MAPPING <- CEDS_NATIONAL_SECTOR_GROUP_MAPPING
-
-# =============================================================================
 # CEDS MAP SECTOR MAPPING (for numeric sector IDs)
 # =============================================================================
 
@@ -185,4 +175,29 @@ CEDS_MAP_SECTOR_GROUP_MAPPING <- c(
   "Solvents production and application" = "Industry",
   "Waste" = "Waste",
   "International Shipping" = "Transport"
+)
+
+# =============================================================================
+# CEDS PROVINCIAL MAPPINGS
+# =============================================================================
+
+# Raw sector codes to readable sector names, plus gridded NetCDF coarse labels.
+# CEDS map sector 3 is spelled "Transportation" in file metadata; we normalize to
+# "Transport" so provincial charts match national sector_group naming (and avoid
+# duplicate Transportation vs Transport). "Transporation" covers a known typo in some files.
+CEDS_PROVINCIAL_SECTOR_MAPPING <- c(
+  CEDS_NATIONAL_SECTOR_MAPPING,
+  "Transportation" = "Transport",
+  "Transporation" = "Transport"
+)
+
+# National granular sectors plus coarse gridded-sector names (CEDS_MAP_SECTOR_GROUP_MAPPING).
+# Without the latter, provincial rows keep e.g. sector "Energy" with sector_group "Energy"
+# instead of "Power Generation", and "Transportation" does not collapse to "Transport".
+extra_provincial_groups <- CEDS_MAP_SECTOR_GROUP_MAPPING[
+  !names(CEDS_MAP_SECTOR_GROUP_MAPPING) %in% names(CEDS_NATIONAL_SECTOR_GROUP_MAPPING)
+]
+CEDS_PROVINCIAL_SECTOR_GROUP_MAPPING <- c(
+  CEDS_NATIONAL_SECTOR_GROUP_MAPPING,
+  extra_provincial_groups
 )
