@@ -47,10 +47,11 @@ CEDSMap <- R6::R6Class(
     #' @param years Years to download
     #' @param formats Output formats: "netcdf", "cog", or both
     #' @param countries Vector of ISO3 country codes (for COGs)
-    #' @return Invisibly returns paths to saved files
+    #' @param keep_raw_cache If FALSE (default), delete each raw gridded `.nc` under `cache/ceds/gridded` after it has been processed. If TRUE, keep them for faster re-runs (high disk use).
+    #' @return Invisibly returns a list with `netcdf` and/or `cog` entries (paths of written outputs), like `generate_maps()`.
     build = function(pollutants = c("NOx", "BC", "CH4", "CO", "CO2", "N2O", "NH3", "NMVOC", "OC", "SO2"),
-                     years = NULL, formats = c("netcdf", "cog"), countries = c("wld")) {
-      # Use all available years if years is NULL
+                     years = NULL, formats = c("netcdf", "cog"), countries = c("wld"),
+                     keep_raw_cache = FALSE) {
       if (is.null(years)) {
         years <- self$available_years
       } else {
@@ -61,26 +62,41 @@ CEDSMap <- R6::R6Class(
         }
       }
 
-      # Download raw files to cache
-      downloaded_files <- list()
+      processed_files <- list(netcdf = list(), cog = list())
+      any_written <- FALSE
+
       for (poll in pollutants) {
         for (year in years) {
           message(glue::glue("Downloading CEDS map data for {poll} in {year}"))
           nc_file <- self$download_nc(poll, year)
-          if (!is.null(nc_file)) {
-            downloaded_files[[length(downloaded_files) + 1]] <- nc_file
+          if (is.null(nc_file) || !nzchar(nc_file) || !file.exists(nc_file)) {
+            next
+          }
+
+          message(glue::glue("Processing {basename(nc_file)} (formats: {paste(formats, collapse = ', ')})"))
+          out <- self$generate_maps(list(nc_file), formats, countries)
+          if ("netcdf" %in% formats && length(out$netcdf) > 0) {
+            processed_files$netcdf <- c(processed_files$netcdf, out$netcdf)
+            any_written <- TRUE
+          }
+          if ("cog" %in% formats && length(out$cog) > 0) {
+            processed_files$cog <- c(processed_files$cog, out$cog)
+            any_written <- TRUE
+          }
+
+          if (!keep_raw_cache && file.exists(nc_file)) {
+            unlink(nc_file)
           }
         }
       }
 
-      # Generate maps in requested formats
-      if (length(downloaded_files) > 0) {
-        message(paste0("Generating maps in formats: ", paste(formats, collapse=", ")))
-        self$generate_maps(downloaded_files, formats, countries)
+      if (!any_written) {
+        message("No CEDS map files processed")
+        return(invisible(list()))
       }
 
       message("CEDS map data build complete!")
-      return(invisible(downloaded_files))
+      return(invisible(processed_files))
     },
 
     #' @description List available data combinations

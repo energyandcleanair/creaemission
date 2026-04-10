@@ -93,10 +93,14 @@ CEDSNational <- R6::R6Class(
     list_available_data = function(year = NULL, sector = NULL, pollutant = NULL) {
       # Reduced logging for production
 
-      # Try prebuilt cache (no filters only)
+      by_year_dir <- file.path(self$data_dir, "by_year")
+      has_by_year_files <- dir.exists(by_year_dir) &&
+        length(list.files(by_year_dir, pattern = "\\.rds$")) > 0
+
+      # Prebuilt inst/cache RDS: only when there is no by_year data to scan (avoids stale years after rebuild)
       if (is.null(pollutant) && is.null(year) && is.null(sector) && is.null(self$available_data_cache)) {
         cache_file <- file.path(get_project_root(), "inst", "cache", "available_data", "ceds_national.rds")
-        if (file.exists(cache_file)) {
+        if (!has_by_year_files && file.exists(cache_file)) {
           # message("CEDS national: loading prebuilt available_data cache")
           self$available_data_cache <- readRDS(cache_file)
           return(self$available_data_cache)
@@ -110,7 +114,6 @@ CEDSNational <- R6::R6Class(
       }
 
       # Check by_year directory
-      by_year_dir <- file.path(self$data_dir, "by_year")
       if (!dir.exists(by_year_dir)) {
         return(data.frame(
           pollutant = character(),

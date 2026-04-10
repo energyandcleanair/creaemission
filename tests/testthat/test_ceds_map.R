@@ -17,8 +17,14 @@ test_that("CEDS map source works correctly", {
   result <- ceds_map$get(test_pollutant, test_sector, test_year, test_iso3)
   expect_null(result)
 
-  # Test 3: Build
+  # Test 3: Build (default: discard raw gridded .nc in cache/ceds/gridded after each file)
   ceds_map$build(pollutants = c(test_pollutant), years = test_year)
+
+  gridded_dir <- file.path(ceds_map$cache_dir, "gridded")
+  if (dir.exists(gridded_dir)) {
+    leftover <- list.files(gridded_dir, pattern = paste0("^", test_pollutant, "_"))
+    expect_equal(length(leftover), 0)
+  }
 
   # Test 4: Check available data after build
   available_data <- ceds_map$list_available_data()
