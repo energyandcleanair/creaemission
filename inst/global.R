@@ -1,3 +1,5 @@
+# Attach so sourced server/ui chunks see exported helpers (runApp often does not attach the package).
+library(creaemission)
 library(dplyr)
 
 # Pollutants are now derived dynamically from available_data

@@ -497,7 +497,7 @@ output$plot <- plotly::renderPlotly({
     # ignores text on areas and plotly drops fills. Patch hovers after conversion.
     plotly::ggplotly(plt) %>%
       reverse_legend_labels() %>%
-      fix_ggplotly_facets(
+      creaemission::fix_ggplotly_facets(
         hgap = 0.05,
         outer = c(0.01, 0.01),
         vgap = 0.08,
@@ -510,7 +510,7 @@ output$plot <- plotly::renderPlotly({
         strip_position = "top",
         strip_row_offset = 0.02
       ) %>%
-      patch_plotly_stacked_area_hover(unit_suffix = unit_suffix)
+      creaemission::patch_plotly_stacked_area_hover(unit_suffix = unit_suffix)
   }
   plotly_end <- Sys.time()
   plotly_duration <- round(as.numeric(difftime(plotly_end, plotly_start, units = "secs")), 3)
@@ -662,7 +662,7 @@ output$selectColorBy <- renderUI({
   req(input$region_type)
   choices <- color_bys
 
-  if(input$region_type=="province"){
+  if (input$region_type == creaemission::REGIONTYPE_PROVINCIAL) {
      names(choices) <- gsub("Country", "Province", names(choices))
   }
 
@@ -673,8 +673,8 @@ output$selectGroupBy <- renderUI({
   req(input$region_type)
   choices <- group_bys
 
-  if(input$region_type=="province"){
-    names(choices) <- gsub("Country", "Province", names(group_bys))
+  if (input$region_type == creaemission::REGIONTYPE_PROVINCIAL) {
+     names(choices) <- gsub("Country", "Province", names(group_bys))
   }
 
   selectInput("group_by", "Group by:", multiple=F, choices = choices, selected=group_bys[1])
