@@ -19,6 +19,7 @@ data/*
 
 # Test artifacts
 tests/testthat/test_data/
+tests/testthat/cache/
 tests/testthat/_snaps/
 tests/testthat/_snaps/*.md
 
