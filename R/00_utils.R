@@ -157,6 +157,20 @@ get_r_path <- function() {
   return(file.path(project_root, "R"))
 }
 
+#' Restrict build years to a source's supported range; warn when dropping values.
+#' @param years Integer years requested (non-NULL).
+#' @param available_years Full supported year set for the source.
+#' @param source_label Label for warning text.
+#' @return Sorted unique years in the intersection.
+clamp_source_build_years <- function(years, available_years, source_label) {
+  years <- unique(as.integer(years))
+  invalid <- setdiff(years, available_years)
+  if (length(invalid) > 0) {
+    warning(glue::glue("{source_label}: omitting years not supported by this source: {paste(sort(invalid), collapse = ', ')}"))
+  }
+  sort(intersect(years, available_years))
+}
+
 #' Map values using a named mapping
 #'
 #' @param values Vector of values to convert

@@ -19,18 +19,19 @@ init_map_tab <- function(input, output, session) {
   })
 
   # Function to validate and update map selections when source changes
-  validate_and_update_map_selections <- function(new_source) {
-    # Get current source object
+  validate_and_update_map_selections <- function() {
     source_obj <- current_map_source()
 
     # Get available data from new source
     available_data <- source_obj$list_available_data()
 
-    # Handle case where no data is available
+    # Handle case where no data is available (placeholder = latest year the source supports)
     if (nrow(available_data) == 0) {
       message("Warning: No data available for map source")
+      max_y <- as.integer(max(source_obj$available_years))
+      selected_map_year(max_y)
       return(list(
-        year = NULL,
+        year = max_y,
         pollutant = "NOx",
         sector = "Energy",
         country = "wld"
@@ -152,7 +153,7 @@ init_map_tab <- function(input, output, session) {
     req(input$map_source)
 
     # Validate and update selections
-    validated_selections <- validate_and_update_map_selections(input$map_source)
+    validated_selections <- validate_and_update_map_selections()
 
     # Update UI inputs with validated selections
     updateSelectInput(session, "map_year", selected = validated_selections$year)
@@ -168,7 +169,7 @@ init_map_tab <- function(input, output, session) {
     # Only run this once when the source is first available
     if (is.null(selected_map_year())) {
       # Validate and update selections for initial setup
-      validated_selections <- validate_and_update_map_selections(input$map_source)
+      validated_selections <- validate_and_update_map_selections()
 
       # Update UI inputs with validated selections
       updateSelectInput(session, "map_year", selected = validated_selections$year)
@@ -234,28 +235,24 @@ init_map_tab <- function(input, output, session) {
 
     available_pollutants <- unique(available_data$pollutant)
 
-    # Create choices directly from available pollutants (no global filtering)
-    available_pollutants_choices <- available_pollutants
-    names(available_pollutants_choices) <- available_pollutants
-
     # Get previously selected pollutant if it's still available
     prev_selected <- selected_map_pollutant()
     if (!is.null(prev_selected) &&
-        prev_selected %in% available_pollutants_choices) {
+        prev_selected %in% available_pollutants) {
       selected <- prev_selected
     } else {
       # Use NOx as default if available, otherwise first available pollutant
-      if ("NOx" %in% available_pollutants_choices) {
+      if ("NOx" %in% available_pollutants) {
         selected <- "NOx"
       } else {
-        selected <- available_pollutants_choices[1]
+        selected <- available_pollutants[1]
       }
     }
 
     # Debug output
     message(
       glue::glue(
-        "Map pollutant UI: prev={prev_selected}, available={paste(available_pollutants_choices, collapse=', ')}, selected={selected}"
+        "Map pollutant UI: prev={prev_selected}, available={paste(available_pollutants, collapse=', ')}, selected={selected}"
       )
     )
 
@@ -263,34 +260,34 @@ init_map_tab <- function(input, output, session) {
       "map_pollutant",
       "Pollutant:",
       multiple = F,
-      choices = available_pollutants_choices,
+      choices = available_pollutants,
       selected = selected
     )
   })
 
   output$map_year_select <- renderUI({
+    # Tie to map_source so the control rebuilds when switching CEDS vs EDGAR
+    req(input$map_source)
     req(current_map_source())
 
-    # Get current source object
     source_obj <- current_map_source()
-
-    # Get available years from actual data
     available_data <- source_obj$list_available_data()
 
-    # Handle case where no data is available
+    max_supported <- as.integer(max(source_obj$available_years))
+
+    # No built map files: single placeholder year (latest year the source supports; not implied coverage)
     if (nrow(available_data) == 0) {
       return(selectInput(
         "map_year",
         "Year:",
         multiple = F,
-        choices = c("2022" = 2022),
-        selected = 2022
+        choices = max_supported,
+        selected = max_supported
       ))
     }
 
     years <- sort(unique(available_data$year))
 
-    # Get previously selected year if it's still available
     prev_selected <- selected_map_year()
     if (!is.null(prev_selected) && prev_selected %in% years) {
       selected <- prev_selected

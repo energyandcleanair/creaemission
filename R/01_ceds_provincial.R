@@ -27,8 +27,8 @@ CEDSProvincial <- R6::R6Class(
     #' @param version Data version
     #' @param available_years Available years
     #' @param data_dir Data directory path
-    initialize = function(version = "2024_11_25",
-                          available_years = 2000:2022,
+    initialize = function(version = "2025_04_18",
+                          available_years = seq(2000, CEDS_MAX_YEAR),
                           data_dir = NULL) {
       # Use path resolution if data_dir is not provided
       if (is.null(data_dir)) {
@@ -87,6 +87,12 @@ CEDSProvincial <- R6::R6Class(
       # Use all available years if years is NULL
       if (is.null(years)) {
         years <- self$available_years
+      } else {
+        years <- clamp_source_build_years(years, self$available_years, "CEDS provincial")
+        if (length(years) == 0) {
+          message("CEDS provincial: no valid years to build")
+          return(invisible(NULL))
+        }
       }
 
       # Extract provincial data
@@ -120,6 +126,11 @@ CEDSProvincial <- R6::R6Class(
         if (file.exists(cache_file)) {
           message("CEDS provincial: loading prebuilt available_data cache")
           self$available_data_cache <- readRDS(cache_file)
+          if (nrow(self$available_data_cache) > 0 && "sector" %in% names(self$available_data_cache)) {
+            self$available_data_cache$sector <- as.character(unname(
+              map_values(self$available_data_cache$sector, CEDS_PROVINCIAL_SECTOR_MAPPING)
+            ))
+          }
           return(self$available_data_cache)
         }
       }
@@ -176,6 +187,9 @@ CEDSProvincial <- R6::R6Class(
           sample_data <- readRDS(sample_file)
 
           if (nrow(sample_data) > 0) {
+            sample_data$sector <- as.character(unname(
+              map_values(sample_data$sector, CEDS_PROVINCIAL_SECTOR_MAPPING)
+            ))
             base_sp <- sample_data %>%
               dplyr::distinct(poll, sector) %>%
               dplyr::rename(pollutant = poll)
@@ -232,6 +246,9 @@ CEDSProvincial <- R6::R6Class(
           tryCatch({
             sample_data <- readRDS(sample_file)
             if (nrow(sample_data) > 0) {
+              sample_data$sector <- as.character(unname(
+                map_values(sample_data$sector, CEDS_PROVINCIAL_SECTOR_MAPPING)
+              ))
               base_combinations <- sample_data %>%
                 dplyr::distinct(poll, sector, year) %>%
                 dplyr::rename(pollutant = poll)
@@ -292,12 +309,21 @@ CEDSProvincial <- R6::R6Class(
     #' @param iso3 ISO3 country code (can be NULL to get all countries)
     #' @return Data frame with emissions data or NULL if not available
     get = function(pollutant = NULL, sector = NULL, year = NULL, iso3 = NULL) {
+      # Align legacy RDS sector strings with current mappings (e.g. Transportation -> Transport)
+      normalize_provincial_sectors <- function(df) {
+        if (is.null(df) || nrow(df) == 0 || !"sector" %in% names(df)) {
+          return(df)
+        }
+        df$sector <- as.character(unname(map_values(df$sector, CEDS_PROVINCIAL_SECTOR_MAPPING)))
+        df
+      }
+
       # Try by_year files first
       if (!is.null(year)) {
         by_year_file <- file.path(self$data_dir, "by_year", paste0("_provincial_", year, ".rds"))
 
         if (file.exists(by_year_file)) {
-          data <- readRDS(by_year_file)
+          data <- normalize_provincial_sectors(readRDS(by_year_file))
 
           # Apply filters only if parameters are not NULL
           filtered_data <- data
@@ -326,7 +352,7 @@ CEDSProvincial <- R6::R6Class(
           return(NULL)
         }
 
-        data <- readRDS(filepath)
+        data <- normalize_provincial_sectors(readRDS(filepath))
 
         # Apply filters only if parameters are not NULL
         filtered_data <- data
@@ -349,7 +375,7 @@ CEDSProvincial <- R6::R6Class(
 
         all_data <- list()
         for (file in rds_files) {
-          data <- readRDS(file)
+          data <- normalize_provincial_sectors(readRDS(file))
 
           # Apply filters only if parameters are not NULL
           filtered_data <- data
@@ -511,10 +537,11 @@ CEDSProvincial <- R6::R6Class(
           # Create meaningful layer name
           layer_name <- paste0(pollutant, "_", sector_id, "_", year)
 
-          # Store metadata
+          # Store metadata (normalize NetCDF labels, e.g. Transportation -> Transport)
+          raw_sector_label <- sector_names[which(sector_ids == sector_id)]
           file_metadata[[layer_name]] <- list(
             pollutant = pollutant,
-            sector = sector_names[which(sector_ids == sector_id)],
+            sector = as.character(unname(map_values(raw_sector_label, CEDS_PROVINCIAL_SECTOR_MAPPING))),
             sector_id = sector_id,
             year = year,
             filename = filename

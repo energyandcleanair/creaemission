@@ -17,9 +17,16 @@ test_that("EDGAR map source works correctly", {
   result <- edgar_map$get(test_pollutant, test_sector, test_year, test_iso3)
   expect_null(result)
 
-  # Test 3: Skip build for now due to EDGAR data availability issues
-  # The build step requires downloading EDGAR NetCDF files which are not available
+  # Test 3: Build downloads gridded NetCDF; default keep_raw_cache clears cache/edgar/gridded after use
   edgar_map$build(pollutants = c(test_pollutant), years = test_year)
+
+  # Shared gridded cache may contain other pollutants from other tests; only assert this build's raw files are gone
+  gridded_dir <- file.path(edgar_map$cache_dir, "gridded")
+  if (dir.exists(gridded_dir)) {
+    pat <- paste0("^", test_pollutant, "_")
+    leftover <- list.files(gridded_dir, pattern = pat)
+    expect_equal(length(leftover), 0)
+  }
 
   # Test 4: Check available data after build (skip for now)
   available_data <- edgar_map$list_available_data()

@@ -20,8 +20,11 @@ test_that("EDGAR national source works correctly", {
   result <- edgar_source$get(test_pollutant, test_sector, test_year)
   expect_null(result)
 
-  # Test 3: Build data (this will use cache for downloads, but save to test data dir)
+  # Test 3: Build data (default: per-pollutant download then discard raw cache under cache/edgar/edgar_raw)
   edgar_source$build(min_year = 2022)
+
+  cache_edgar_raw <- file.path(get_cache_folder("edgar"), "edgar_raw")
+  expect_true(!dir.exists(cache_edgar_raw) || length(list.files(cache_edgar_raw)) == 0)
 
   # Test 4: Check available data after build
   available_data <- edgar_source$list_available_data()

@@ -56,7 +56,7 @@ EDGARMap <- R6::R6Class(
     #' @param available_years Available years
     #' @param data_dir Data directory path
     initialize = function(version = "v8.1",
-                          available_years = 2000:2022,
+                          available_years = seq(2000, EDGAR_MAX_YEAR),
                           data_dir = NULL) {
       # Use path resolution if data_dir is not provided
       if (is.null(data_dir)) {
@@ -82,45 +82,77 @@ EDGARMap <- R6::R6Class(
     #' @param years Years to build (default: all available)
     #' @param formats Output formats: "netcdf", "cog", or both
     #' @param countries Vector of ISO3 country codes (for COGs)
+    #' @param keep_raw_cache If FALSE (default), remove each year's raw NetCDF batch after processing and remove zip/leftover NC per pollutant×sector when done. If TRUE, keep gridded cache on disk (legacy, higher disk use).
     #' @return Invisibly returns list of processed files
     build = function(pollutants = names(EDGAR_POLLUTANTS),
                     sectors = names(EDGAR_PROVINCIAL_SECTOR_MAPPING),
-                    years = NULL, formats = c("netcdf", "cog"), countries = c("wld")) {
+                    years = NULL, formats = c("netcdf", "cog"), countries = c("wld"),
+                    keep_raw_cache = FALSE) {
       message("Building EDGAR map data...")
 
-      # Use all available years if years is NULL
       if (is.null(years)) {
         years <- self$available_years
+      } else {
+        years <- clamp_source_build_years(years, self$available_years, "EDGAR map")
+        if (length(years) == 0) {
+          message("EDGAR map: no valid years to build")
+          return(invisible(character(0)))
+        }
       }
 
-      # Step 1: Download raw NetCDF files
-      downloaded_files <- list()
+      processed_files <- list(netcdf = list(), cog = list())
+      any_written <- FALSE
+
       for (poll in pollutants) {
+        message(glue::glue("EDGAR map: pollutant {poll} — downloading gridded NetCDF per sector"))
+        nc_by_sector <- vector("list", length(sectors))
+        names(nc_by_sector) <- sectors
         for (sector in sectors) {
-          for (year in years) {
-            message(glue::glue("Downloading EDGAR map data for {poll} {sector} in {year}"))
-            nc_files <- self$download_nc(poll, sector)
-            if (length(nc_files) > 0) {
-              # Filter files by year
-              filtered_files <- self$filter_files_by_year(nc_files, year)
-              if (length(filtered_files) > 0) {
-                downloaded_files <- c(downloaded_files, filtered_files)
-              }
-            }
+          nc_by_sector[[sector]] <- self$download_nc(poll, sector)
+        }
+
+        for (year in years) {
+          raw_batch <- character(0)
+          for (sector in sectors) {
+            raw_batch <- c(
+              raw_batch,
+              self$filter_files_by_year(nc_by_sector[[sector]], year)
+            )
+          }
+          if (length(raw_batch) == 0) {
+            next
+          }
+
+          message(glue::glue("Generating maps for {poll} year {year} ({length(raw_batch)} raw files); formats: {paste(formats, collapse = ', ')}"))
+          out <- self$generate_maps(raw_batch, formats, countries)
+          if ("netcdf" %in% formats && length(out$netcdf) > 0) {
+            processed_files$netcdf <- c(processed_files$netcdf, out$netcdf)
+            any_written <- TRUE
+          }
+          if ("cog" %in% formats && length(out$cog) > 0) {
+            processed_files$cog <- c(processed_files$cog, out$cog)
+            any_written <- TRUE
+          }
+
+          if (!keep_raw_cache) {
+            unlink(raw_batch[file.exists(raw_batch)])
+          }
+        }
+
+        if (!keep_raw_cache) {
+          for (sector in sectors) {
+            self$cleanup_gridded_sector(poll, sector)
           }
         }
       }
 
-      # Step 2: Generate maps in requested formats
-      if (length(downloaded_files) > 0) {
-        message(paste0("Generating maps in formats: ", paste(formats, collapse=", ")))
-        processed_files <- self$generate_maps(downloaded_files, formats, countries)
-        message("EDGAR map data build complete!")
-        return(invisible(processed_files))
-      } else {
+      if (!any_written) {
         message("No files downloaded for processing")
         return(invisible(character(0)))
       }
+
+      message("EDGAR map data build complete!")
+      return(invisible(processed_files))
     },
 
     #' @description List available data combinations
@@ -339,6 +371,33 @@ EDGARMap <- R6::R6Class(
 
       message(glue::glue("Cleared {removed_count} EDGAR map files"))
       return(invisible(removed_count))
+    },
+
+    #' @description Remove gridded zip and NetCDF artifacts for one pollutant×sector (under `cache/edgar/gridded`)
+    #' @param pollutant Pollutant code
+    #' @param sector Sector code
+    #' @return Invisibly NULL
+    cleanup_gridded_sector = function(pollutant, sector) {
+      cache_dir <- file.path(self$cache_dir, "gridded")
+      if (!dir.exists(cache_dir)) {
+        return(invisible(NULL))
+      }
+
+      dest_file_zip <- glue::glue("{cache_dir}/{pollutant}_{sector}_v{self$version}.zip")
+      if (file.exists(dest_file_zip)) {
+        file.remove(dest_file_zip)
+      }
+
+      nc_files <- list.files(
+        cache_dir,
+        pattern = glue::glue("{pollutant}.*{sector}.*\\.nc$"),
+        full.names = TRUE
+      )
+      if (length(nc_files) > 0) {
+        unlink(nc_files)
+      }
+
+      invisible(NULL)
     },
 
     #' @description Download NetCDF file to cache

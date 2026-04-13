@@ -442,8 +442,8 @@ output$plot <- plotly::renderPlotly({
       mutate(
         # Clean the color names using utility functions
         color_clean = case_when(
-          color_by == "sector" ~ clean_sector_name(color),
-          color_by == "fuel" ~ clean_fuel_name(color),
+          color_by == "sector" ~ creaemission::clean_sector_name(color),
+          color_by == "fuel" ~ creaemission::clean_fuel_name(color),
           TRUE ~ color
         ),
         # Truncate very long names to prevent popup overflow
@@ -463,7 +463,7 @@ output$plot <- plotly::renderPlotly({
       mutate(color_label = reorder(color_label, value)) %>%
       ungroup() %>%
       ggplot2::ggplot(ggplot2::aes(year, value)) +
-      ggplot2::geom_area(ggplot2::aes(fill=color_label)) +
+      ggplot2::geom_area(ggplot2::aes(fill = color_label)) +
       rcrea::theme_crea_new() +
       ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult=c(0, 0.1)),
                          labels = scales::comma_format(suffix=unit_suffix)) +
@@ -493,9 +493,11 @@ output$plot <- plotly::renderPlotly({
       reverse_legend_labels()
   } else if(chart_type == "area") {
     message("📊 CHARTS: Converting area to plotly...")
+    # Do not use aes(text=...) or ggplotly(tooltip="text") with geom_area: ggplot2
+    # ignores text on areas and plotly drops fills. Patch hovers after conversion.
     plotly::ggplotly(plt) %>%
       reverse_legend_labels() %>%
-      fix_ggplotly_facets(
+      creaemission::fix_ggplotly_facets(
         hgap = 0.05,
         outer = c(0.01, 0.01),
         vgap = 0.08,
@@ -507,7 +509,8 @@ output$plot <- plotly::renderPlotly({
         right_margin = 180,
         strip_position = "top",
         strip_row_offset = 0.02
-      )
+      ) %>%
+      creaemission::patch_plotly_stacked_area_hover(unit_suffix = unit_suffix)
   }
   plotly_end <- Sys.time()
   plotly_duration <- round(as.numeric(difftime(plotly_end, plotly_start, units = "secs")), 3)
@@ -659,7 +662,7 @@ output$selectColorBy <- renderUI({
   req(input$region_type)
   choices <- color_bys
 
-  if(input$region_type=="province"){
+  if (input$region_type == creaemission::REGIONTYPE_PROVINCIAL) {
      names(choices) <- gsub("Country", "Province", names(choices))
   }
 
@@ -670,8 +673,8 @@ output$selectGroupBy <- renderUI({
   req(input$region_type)
   choices <- group_bys
 
-  if(input$region_type=="province"){
-    names(choices) <- gsub("Country", "Province", names(group_bys))
+  if (input$region_type == creaemission::REGIONTYPE_PROVINCIAL) {
+     names(choices) <- gsub("Country", "Province", names(group_bys))
   }
 
   selectInput("group_by", "Group by:", multiple=F, choices = choices, selected=group_bys[1])

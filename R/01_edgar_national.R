@@ -32,7 +32,7 @@ EDGARNational <- R6::R6Class(
     #' @param available_years Available years
     #' @param data_dir Data directory path
     initialize = function(version = "v8.1",
-                          available_years = 2000:2022,
+                          available_years = seq(2000, EDGAR_MAX_YEAR),
                           data_dir = NULL) {
       # Use path resolution if data_dir is not provided
       if (is.null(data_dir)) {
@@ -71,15 +71,57 @@ EDGARNational <- R6::R6Class(
 
     #' @description Build national emissions data
     #' @param min_year Minimum year to include
+    #' @param pollutants Pollutants to download and process (default: all EDGAR national pollutants)
+    #' @param keep_raw_cache If TRUE, keep all zips and extracts under `edgar_raw` (legacy behavior, higher disk use). If FALSE, remove each pollutant's zip and extract after it is processed.
     #' @return Invisibly returns paths to saved files
-    build = function(min_year = NULL) {
-      # Download data
-      downloaded_dir <- self$download_data()
+    build = function(min_year = NULL,
+                     pollutants = EDGAR_POLLUTANTS,
+                     keep_raw_cache = FALSE) {
+      if (keep_raw_cache) {
+        downloaded_dir <- self$download_data(pollutants = pollutants)
+        emissions_data <- self$process_data(downloaded_dir, min_year)
+      } else {
+        download_dir <- file.path(self$cache_dir, "edgar_raw")
+        if (!dir.exists(download_dir)) {
+          dir.create(download_dir, recursive = TRUE, showWarnings = FALSE)
+        }
 
-      # Process data
-      emissions_data <- self$process_data(downloaded_dir, min_year)
+        chunks <- list()
+        for (poll in pollutants) {
+          message(glue::glue("Downloading EDGAR data for {poll}"))
 
-      # Save data in both formats
+          url <- glue::glue("{self$base_url}/v81_FT2022_AP_new/EDGAR_{gsub('\\\\.','',poll)}_1970_2022.zip")
+          dest_file <- file.path(download_dir, glue::glue("EDGAR_{poll}_1970_2022.zip"))
+          if (poll == "SO2") {
+            url <- gsub("\\.zip$", "_v2.zip", url)
+          }
+
+          if (file.exists(dest_file)) {
+            message(glue::glue("File {dest_file} already exists, skipping download."))
+          } else {
+            download.file(url, dest_file)
+          }
+
+          staging_slug <- gsub("_+", "_", gsub("[^A-Za-z0-9._-]", "_", poll))
+          extract_subdir <- file.path(download_dir, staging_slug)
+          if (dir.exists(extract_subdir)) {
+            unlink(extract_subdir, recursive = TRUE)
+          }
+          dir.create(extract_subdir, recursive = TRUE, showWarnings = FALSE)
+          unzip(dest_file, exdir = extract_subdir)
+
+          chunk <- self$process_data(extract_subdir, min_year)
+          chunks[[length(chunks) + 1]] <- chunk
+
+          unlink(extract_subdir, recursive = TRUE)
+          if (file.exists(dest_file)) {
+            file.remove(dest_file)
+          }
+        }
+
+        emissions_data <- dplyr::bind_rows(chunks)
+      }
+
       results <- self$save_data(emissions_data, by_year = TRUE, by_country = TRUE)
 
       message("EDGAR national data build complete!")
@@ -94,10 +136,14 @@ EDGARNational <- R6::R6Class(
     list_available_data = function(year = NULL, sector = NULL, pollutant = NULL) {
       # Reduced logging for production
 
-      # Try prebuilt cache (no filters only)
+      by_year_dir <- file.path(self$data_dir, "by_year")
+      has_by_year_files <- dir.exists(by_year_dir) &&
+        length(list.files(by_year_dir, pattern = "\\.rds$")) > 0
+
+      # Prebuilt inst/cache RDS: only when there is no by_year data to scan
       if (is.null(pollutant) && is.null(year) && is.null(sector) && is.null(self$available_data_cache)) {
         cache_file <- file.path(get_project_root(), "inst", "cache", "available_data", "edgar_national.rds")
-        if (file.exists(cache_file)) {
+        if (!has_by_year_files && file.exists(cache_file)) {
           # message("EDGAR national: loading prebuilt available_data cache")
           self$available_data_cache <- readRDS(cache_file)
           return(self$available_data_cache)
@@ -111,7 +157,6 @@ EDGARNational <- R6::R6Class(
       }
 
       # Check by_year directory
-      by_year_dir <- file.path(self$data_dir, "by_year")
       if (!dir.exists(by_year_dir)) {
         return(data.frame(
           pollutant = character(),
@@ -306,37 +351,31 @@ EDGARNational <- R6::R6Class(
       return(invisible(removed_count))
     },
 
-    #' @description Download EDGAR data
+    #' @description Download and extract all requested pollutants into `edgar_raw` (flat layout). Used when `build(keep_raw_cache = TRUE)` or for ad-hoc downloads.
     #' @param pollutants Vector of pollutants to download
     #' @return Path to downloaded data directory
     download_data = function(pollutants = EDGAR_POLLUTANTS) {
-      # Create directory for downloaded files
       download_dir <- file.path(self$cache_dir, "edgar_raw")
       if (!dir.exists(download_dir)) {
         dir.create(download_dir, recursive = TRUE, showWarnings = FALSE)
       }
 
-      # Download each pollutant
       for (poll in pollutants) {
         message(glue::glue("Downloading EDGAR data for {poll}"))
 
-        # Construct URL
         url <- glue::glue("{self$base_url}/v81_FT2022_AP_new/EDGAR_{gsub('\\\\.','',poll)}_1970_2022.zip")
         dest_file <- file.path(download_dir, glue::glue("EDGAR_{poll}_1970_2022.zip"))
 
-        # For SO2 need to append _v2.zip
-        if(poll == "SO2") {
+        if (poll == "SO2") {
           url <- gsub("\\.zip$", "_v2.zip", url)
         }
 
-        # Download
         if (file.exists(dest_file)) {
           message(glue::glue("File {dest_file} already exists, skipping download."))
-        }else{
+        } else {
           download.file(url, dest_file)
         }
 
-        # Extract
         unzip(dest_file, exdir = download_dir)
       }
 
@@ -354,9 +393,21 @@ EDGARNational <- R6::R6Class(
       }
 
 
-      # Find all CSV files
       xlsx_files <- list.files(data_dir, pattern = ".*\\.xlsx", full.names = TRUE, recursive = TRUE)
       message("Processing ", length(xlsx_files), " XLSX files...")
+
+      if (length(xlsx_files) == 0) {
+        return(dplyr::tibble(
+          iso3 = character(),
+          sector = character(),
+          poll = character(),
+          fuel = character(),
+          year = integer(),
+          units = character(),
+          value = numeric(),
+          source = character()
+        ))
+      }
 
       # Parse each file (implementation would depend on EDGAR file format)
       parse_file <- function(file) {
