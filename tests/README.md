@@ -1,7 +1,6 @@
 # Testing Framework
 
-This directory contains the test suite for the CREA Emission Portal package using the `testthat` framework.
-
+This directory contains the `testthat` suite for `creaemission`.
 
 ## Running Tests
 
@@ -10,33 +9,40 @@ This directory contains the test suite for the CREA Emission Portal package usin
 devtools::test()
 ```
 
-### Run specific test file
+### Run a specific file
 ```r
-testthat::test_file("tests/testthat/test-edgar-download.R")
+testthat::test_file("tests/testthat/test_ceds_prebuilt_sanity.R")
 ```
 
-### Run tests interactively
+### Run the active file
 ```r
 devtools::test_active_file()
 ```
 
-## Test Categories
+## Test Structure
 
-### Unit Tests
-- Utility functions (`clean_sector_name`, `clean_fuel_name`, etc.)
-- Data validation functions
-- Helper functions
+### Constructor and offline smoke tests
+- These verify that source constructors can be created with isolated paths.
+- They check `clear()`, empty `list_available_data()`, and `get()` on fresh directories.
+- They do not call `build()` and should be safe to run on CI without network access.
 
-### Integration Tests
-- EDGAR data download and processing
-- CEDS data download and processing
-- Provincial vs national validation
+### Prebuilt sanity tests
+- These are read-only checks against prebuilt files under `data/...` when those directories are available locally.
+- They cover:
+  - national vs provincial consistency
+  - national vs raster consistency
+- Raster country checks derive national totals from the world raster using `creahelpers::get_adm()` and `terra::extract()`.
+- Manually curated reference sums used by these checks live in `tests/testthat/helper_prebuilt_reference_values.R`.
+- That helper also stores per-case tolerances, so countries can use different thresholds.
+- On environments without prebuilt data, such as GitHub runners, these tests skip cleanly.
 
-### Validation Tests
-- Compare provincial sums with known national totals
-- Verify data structure and format
-- Check for data consistency
+### Test cache helpers
+- The suite uses `tests/testthat/cache/` as a repo-local test cache root.
+- Cache seeding can reuse matching artifacts from the main `cache/` tree by hard-linking or copying them into the test cache.
+- This speeds up local rebuild-oriented workflows without making the default suite depend on downloads.
 
-## Test Data
+## Test Data and Paths
 
-Test data is stored in `tests/testthat/test_data/` and is automatically cleaned up after tests.
+- `tests/testthat/test_data/` holds isolated temporary workspaces created during tests.
+- `tests/testthat/cache/` holds reusable test cache artifacts.
+- Prebuilt sanity tests read from `data/...` and never mutate those directories.

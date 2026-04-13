@@ -20,6 +20,9 @@ CEDSProvincial <- R6::R6Class(
     #' @field cache_dir Directory for temporary files
     cache_dir = NULL,
 
+    #' @field use_prebuilt_available_data Whether list_available_data() may use inst/cache shortcuts
+    use_prebuilt_available_data = NULL,
+
     #' @field available_data_cache Cached available data combinations
     available_data_cache = NULL,
 
@@ -27,24 +30,47 @@ CEDSProvincial <- R6::R6Class(
     #' @param version Data version
     #' @param available_years Available years
     #' @param data_dir Data directory path
+    #' @param cache_dir Cache directory path
+    #' @param map_data_dir Map data directory path for the internal map source
+    #' @param map_cache_dir Cache directory path for the internal map source
+    #' @param map_source Optional pre-configured internal map source
+    #' @param use_prebuilt_available_data Whether list_available_data() may use inst/cache shortcuts
     initialize = function(version = "2025_04_18",
                           available_years = seq(2000, CEDS_MAX_YEAR),
-                          data_dir = NULL) {
+                          data_dir = NULL,
+                          cache_dir = NULL,
+                          map_data_dir = NULL,
+                          map_cache_dir = NULL,
+                          map_source = NULL,
+                          use_prebuilt_available_data = NULL) {
+      uses_default_data_dir <- is.null(data_dir)
+
       # Use path resolution if data_dir is not provided
-      if (is.null(data_dir)) {
+      if (uses_default_data_dir) {
         data_dir <- get_data_path(c("ceds", "provincial"))
+      }
+      if (is.null(cache_dir)) {
+        cache_dir <- get_cache_folder("ceds")
+      }
+      if (is.null(use_prebuilt_available_data)) {
+        use_prebuilt_available_data <- uses_default_data_dir
       }
 
       # Create map source
-      map_source <- CEDSMap$new(
-        version = version,
-        available_years = available_years
-      )
+      if (is.null(map_source)) {
+        map_source <- CEDSMap$new(
+          version = version,
+          available_years = available_years,
+          data_dir = map_data_dir,
+          cache_dir = map_cache_dir
+        )
+      }
 
       super$initialize(data_dir = data_dir, map_source = map_source)
       self$version <- version
       self$available_years <- available_years
-      self$cache_dir <- get_cache_folder("ceds")
+      self$cache_dir <- cache_dir
+      self$use_prebuilt_available_data <- use_prebuilt_available_data
 
       # Create directories if they don't exist
       for (dir in c(self$data_dir, self$cache_dir)) {
@@ -121,7 +147,11 @@ CEDSProvincial <- R6::R6Class(
       # Reduced logging for production
 
       # Try prebuilt cache (no filters only)
-      if (is.null(pollutant) && is.null(year) && is.null(sector) && is.null(self$available_data_cache)) {
+      if (self$use_prebuilt_available_data &&
+          is.null(pollutant) &&
+          is.null(year) &&
+          is.null(sector) &&
+          is.null(self$available_data_cache)) {
         cache_file <- file.path(get_project_root(), "inst", "cache", "available_data", "ceds_provincial.rds")
         if (file.exists(cache_file)) {
           message("CEDS provincial: loading prebuilt available_data cache")
