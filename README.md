@@ -61,7 +61,10 @@ shiny::runApp('inst/')
 
 For deployment instructions, see [DEPLOY.md](DEPLOY.md).
 
+
 ## Test Structure
+
+**Important**: Only the *Constructor and offline smoke tests* run on Github. The others need to be run locally to validate generated datasets before deploying the dashboard. Simply run the whole test suite.
 
 ### Constructor and offline smoke tests
 - These verify that source constructors can be created with isolated paths.
