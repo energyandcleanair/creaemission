@@ -1,6 +1,7 @@
 man/
 output/
 doc/
+diagnostics/
 
 data/*
 
