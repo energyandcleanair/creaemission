@@ -43,19 +43,19 @@ test_that("EDGAR prebuilt provincial and national values are matching", {
     expect_equal(
       national_sum_kt,
       case$reference_sum_kt,
-      tolerance = case$reference_tolerance,
+      tolerance = case$tolerance,
       info = case$reference_origin
     )
     expect_equal(
       provincial_sum_kt,
       case$reference_sum_kt,
-      tolerance = case$reference_tolerance,
+      tolerance = case$tolerance,
       info = case$reference_origin
     )
     expect_equal(
       provincial_sum_kt,
       national_sum_kt,
-      tolerance = case$comparison_tolerance,
+      tolerance = case$tolerance,
       info = case$iso3
     )
     expect_true(national_sum_kt > 0, info = case$iso3)
@@ -108,19 +108,19 @@ test_that("EDGAR prebuilt national and raster values are matching", {
     expect_equal(
       national_sum_kt,
       case$reference_sum_kt,
-      tolerance = case$reference_tolerance,
+      tolerance = case$tolerance,
       info = case$reference_origin
     )
     expect_equal(
       raster_sum_kt,
       case$reference_sum_kt,
-      tolerance = case$reference_tolerance,
+      tolerance = case$tolerance,
       info = case$reference_origin
     )
     expect_equal(
       raster_sum_kt,
       national_sum_kt,
-      tolerance = case$comparison_tolerance,
+      tolerance = case$tolerance,
       info = case$iso3
     )
     expect_true(raster_sum_kt > 0, info = case$iso3)

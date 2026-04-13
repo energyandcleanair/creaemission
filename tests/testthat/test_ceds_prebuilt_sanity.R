@@ -52,19 +52,19 @@ test_that("CEDS prebuilt provincial and national values are matching", {
     expect_equal(
       national_sum_kt,
       case$reference_sum_kt,
-      tolerance = case$reference_tolerance,
+      tolerance = case$tolerance,
       info = case$reference_origin
     )
     expect_equal(
       provincial_sum_kt,
       case$reference_sum_kt,
-      tolerance = case$reference_tolerance,
+      tolerance = case$tolerance,
       info = case$reference_origin
     )
     expect_equal(
       provincial_sum_kt,
       national_sum_kt,
-      tolerance = case$comparison_tolerance,
+      tolerance = case$tolerance,
       info = case$iso3
     )
     expect_true(national_sum_kt > 0, info = case$iso3)
@@ -90,6 +90,15 @@ test_that("CEDS prebuilt national and raster values are matching", {
   raster_cases <- PREBUILT_REFERENCE_VALUES$ceds$raster
 
   for (case in raster_cases) {
+    map_sectors <- case$map_sectors_override
+    if (is.null(map_sectors)) {
+      map_sectors <- names(CEDS_MAP_SECTOR_GROUP_MAPPING)[
+        CEDS_MAP_SECTOR_GROUP_MAPPING == case$sector_group
+      ]
+    }
+
+    expect_true(length(map_sectors) > 0, info = case$sector_group)
+
     national_iso3 <- if (case$iso3 == "wld") NULL else case$iso3
     national_data <- ceds_national$get(
       pollutant = "NMVOC",
@@ -102,34 +111,38 @@ test_that("CEDS prebuilt national and raster values are matching", {
     expect_true(nrow(national_data) > 0, info = case$iso3)
 
     national_sum_kt <- sum(national_data$value, na.rm = TRUE)
+    raster_sum_kt <- 0
 
-    global_raster <- ceds_map$get_cog(
-      pollutant = "NMVOC",
-      sector = case$map_sector,
-      year = case$year,
-      iso3 = "wld"
-    )
-    expect_false(is.null(global_raster), info = case$iso3)
-    expect_equal(terra::units(global_raster), "kg m-2 yr-1", info = case$iso3)
+    for (map_sector in map_sectors) {
+      global_raster <- ceds_map$get_cog(
+        pollutant = "NMVOC",
+        sector = map_sector,
+        year = case$year,
+        iso3 = "wld"
+      )
 
-    raster_sum_kt <- extract_raster_national_sum_kt(global_raster, case$iso3)
+      expect_false(is.null(global_raster), info = paste(case$iso3, map_sector))
+      expect_equal(terra::units(global_raster), "kg m-2 yr-1", info = paste(case$iso3, map_sector))
+
+      raster_sum_kt <- raster_sum_kt + extract_raster_national_sum_kt(global_raster, case$iso3)
+    }
 
     expect_equal(
       national_sum_kt,
       case$reference_sum_kt,
-      tolerance = case$reference_tolerance,
+      tolerance = case$tolerance,
       info = case$reference_origin
     )
     expect_equal(
       raster_sum_kt,
       case$reference_sum_kt,
-      tolerance = case$reference_tolerance,
+      tolerance = case$tolerance,
       info = case$reference_origin
     )
     expect_equal(
       raster_sum_kt,
       national_sum_kt,
-      tolerance = case$comparison_tolerance,
+      tolerance = case$tolerance,
       info = case$iso3
     )
     expect_true(raster_sum_kt > 0, info = case$iso3)
