@@ -5,6 +5,7 @@ build_data <- function(min_year = 2000,
                        ceds_map_years = 2023,
                        edgar_map_years = 2022,
                        provincial_iso2s=c("ID", "IN", "ZA", "TH", "CN"),
+                       provincial_res = "full",
                        sources = c("CEDS", "EDGAR"),
                        build_national = TRUE,
                        build_maps = TRUE,
@@ -28,7 +29,11 @@ build_data <- function(min_year = 2000,
     if (build_provincial) {
       message("Building CEDS provincial emissions data...")
       ceds_provincial <- CEDSProvincial$new()
-      ceds_provincial$build(iso2s = provincial_iso2s, years = ceds_provincial_years)
+      ceds_provincial$build(
+        iso2s = provincial_iso2s,
+        years = ceds_provincial_years,
+        res = provincial_res
+      )
 
       # Build maps if requested
       if (build_maps) {
@@ -55,7 +60,11 @@ build_data <- function(min_year = 2000,
     if (build_provincial) {
       message("Building EDGAR provincial emissions data...")
       edgar_provincial <- EDGARProvincial$new()
-      edgar_provincial$build(iso2s = provincial_iso2s, years = edgar_provincial_years)
+      edgar_provincial$build(
+        iso2s = provincial_iso2s,
+        years = edgar_provincial_years,
+        res = provincial_res
+      )
 
       # Build maps if requested
       if (build_maps) {

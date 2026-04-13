@@ -23,6 +23,9 @@ CEDSNational <- R6::R6Class(
     #' @field cache_dir Directory for temporary files
     cache_dir = NULL,
 
+    #' @field use_prebuilt_available_data Whether list_available_data() may use inst/cache shortcuts
+    use_prebuilt_available_data = NULL,
+
     #' @field available_data_cache Cached available data combinations
     available_data_cache = NULL,
 
@@ -30,19 +33,32 @@ CEDSNational <- R6::R6Class(
     #' @param version Data version
     #' @param available_years Available years
     #' @param data_dir Data directory path
+    #' @param cache_dir Cache directory path
+    #' @param use_prebuilt_available_data Whether list_available_data() may use inst/cache shortcuts
     initialize = function(version = "v_2025_03_18",
                           available_years = seq(2000, CEDS_MAX_YEAR),
-                          data_dir = NULL) {
+                          data_dir = NULL,
+                          cache_dir = NULL,
+                          use_prebuilt_available_data = NULL) {
+      uses_default_data_dir <- is.null(data_dir)
+
       # Use path resolution if data_dir is not provided
-      if (is.null(data_dir)) {
+      if (uses_default_data_dir) {
         data_dir <- get_data_path(c("ceds", "national"))
+      }
+      if (is.null(cache_dir)) {
+        cache_dir <- get_cache_folder("ceds")
+      }
+      if (is.null(use_prebuilt_available_data)) {
+        use_prebuilt_available_data <- uses_default_data_dir
       }
 
       super$initialize(data_dir = data_dir)
       self$version <- version
       self$available_years <- available_years
       self$base_url <- "https://zenodo.org/records/15059443"
-      self$cache_dir <- get_cache_folder("ceds")
+      self$cache_dir <- cache_dir
+      self$use_prebuilt_available_data <- use_prebuilt_available_data
 
       # Create directories if they don't exist
       for (dir in c(self$data_dir, self$cache_dir)) {
@@ -98,7 +114,11 @@ CEDSNational <- R6::R6Class(
         length(list.files(by_year_dir, pattern = "\\.rds$")) > 0
 
       # Prebuilt inst/cache RDS: only when there is no by_year data to scan (avoids stale years after rebuild)
-      if (is.null(pollutant) && is.null(year) && is.null(sector) && is.null(self$available_data_cache)) {
+      if (self$use_prebuilt_available_data &&
+          is.null(pollutant) &&
+          is.null(year) &&
+          is.null(sector) &&
+          is.null(self$available_data_cache)) {
         cache_file <- file.path(get_project_root(), "inst", "cache", "available_data", "ceds_national.rds")
         if (!has_by_year_files && file.exists(cache_file)) {
           # message("CEDS national: loading prebuilt available_data cache")

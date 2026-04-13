@@ -156,9 +156,17 @@ SourceProvincial <- R6::R6Class(
     #' @param vect Terra vector object
     #' @param id_col ID column name
     #' @param buffer_into_sea_km Buffer distance in km
+    #' @param res Resolution ("low" or "high") used for the land mask
     #' @return Buffered terra vector object
-    buffer_into_sea = function(vect, id_col, buffer_into_sea_km) {
+    buffer_into_sea = function(vect, id_col, buffer_into_sea_km, res = "low") {
       message(glue::glue("Buffering {id_col} into sea by {buffer_into_sea_km} km"))
+
+      iso3_values <- unique(stats::na.omit(vect$GID_0))
+      if (length(iso3_values) != 1) {
+        stop("buffer_into_sea() requires exactly one non-missing GID_0 value")
+      }
+
+      iso3 <- iso3_values[[1]]
 
       g_sf <- vect %>%
         sf::st_as_sf() %>%
@@ -171,14 +179,44 @@ SourceProvincial <- R6::R6Class(
         group = id_col,
         dist = buffer_into_sea_km * 1000)
 
+      countries_sf <- creahelpers::get_adm(level = 0, res = res) %>%
+        terra::vect() %>%
+        sf::st_as_sf() %>%
+        sf::st_transform(sf::st_crs(g_sf)) %>%
+        sf::st_make_valid()
+
+      foreign_land <- suppressWarnings(
+        countries_sf %>%
+          dplyr::filter(GID_0 != iso3) %>%
+          sf::st_crop(sf::st_as_sfc(sf::st_bbox(g_coast)))
+      )
+
+      if (nrow(foreign_land) > 0) {
+        foreign_land_union <- sf::st_union(foreign_land)
+        coast_geometries <- lapply(seq_len(nrow(g_coast)), function(i) {
+          coast_geometry <- suppressWarnings(
+            sf::st_difference(sf::st_geometry(g_coast)[i], foreign_land_union)
+          )
+
+          if (length(coast_geometry) == 0) {
+            return(sf::st_geometrycollection())
+          }
+
+          coast_geometry[[1]]
+        })
+        sf::st_geometry(g_coast) <- sf::st_sfc(coast_geometries, crs = sf::st_crs(g_coast))
+        g_coast <- g_coast %>%
+          dplyr::filter(!sf::st_is_empty(.data$geometry))
+      }
+
       # Join back and reproject
-      g_combined <- bind_rows(g_sf, g_coast) %>%
+      g_combined <- dplyr::bind_rows(g_sf, g_coast) %>%
         dplyr::group_by_at(id_col) %>%
-        summarise() %>%
+        dplyr::summarise() %>%
         sf::st_transform(sf::st_crs(sf::st_as_sf(vect))) %>%
         sf::st_make_valid() %>%
-        filter(!is.na(!!rlang::sym(id_col))) %>%
-        left_join(g_sf %>%
+        dplyr::filter(!is.na(!!rlang::sym(id_col))) %>%
+        dplyr::left_join(g_sf %>%
                     as.data.frame() %>%
                     dplyr::select(-geometry),
                   by = id_col) %>%
@@ -187,6 +225,49 @@ SourceProvincial <- R6::R6Class(
 
       return(g_combined)
     },
+    #' @description Get the cache path for province boundaries
+    #' @param iso2 ISO2 country code
+    #' @param level Administrative level (1 for provinces)
+    #' @param res Resolution ("low" or "high")
+    #' @param buffer_into_sea_km Buffer distance into sea in km
+    #' @return Cache file path or NULL if no cache directory is configured
+    get_boundary_cache_root = function() {
+      if (is.null(self$cache_dir) || !nzchar(self$cache_dir)) {
+        return(NULL)
+      }
+
+      cache_root <- dirname(self$cache_dir)
+      boundary_cache_root <- file.path(cache_root, "boundaries")
+
+      if (!dir.exists(boundary_cache_root)) {
+        dir.create(boundary_cache_root, recursive = TRUE, showWarnings = FALSE)
+      }
+
+      boundary_cache_root
+    },
+    #' @description Get the cache path for province boundaries
+    #' @param iso2 ISO2 country code
+    #' @param level Administrative level (1 for provinces)
+    #' @param res Resolution ("low" or "high")
+    #' @param buffer_into_sea_km Buffer distance into sea in km
+    #' @return Cache file path or NULL if no cache directory is configured
+    get_boundary_cache_path = function(iso2, level = 1, res = "low", buffer_into_sea_km = 20) {
+      boundary_cache_root <- self$get_boundary_cache_root()
+      if (is.null(boundary_cache_root)) {
+        return(NULL)
+      }
+
+      boundary_cache_dir <- file.path(boundary_cache_root, tolower(iso2))
+      if (!dir.exists(boundary_cache_dir)) {
+        dir.create(boundary_cache_dir, recursive = TRUE, showWarnings = FALSE)
+      }
+
+      buffer_tag <- gsub("[^0-9A-Za-z]+", "_", as.character(buffer_into_sea_km))
+      file.path(
+        boundary_cache_dir,
+        glue::glue("adm{level}_{tolower(res)}_sea_{buffer_tag}km.gpkg")
+      )
+    },
     #' @description Get province boundaries
     #' @param iso2 ISO2 country code
     #' @param level Administrative level (1 for provinces)
@@ -194,6 +275,12 @@ SourceProvincial <- R6::R6Class(
     #' @param buffer_into_sea_km Buffer distance into sea in km
     #' @return Terra vector object with provinces
     get_province_boundaries = function(iso2, level = 1, res = "low", buffer_into_sea_km = 20) {
+      cache_file <- self$get_boundary_cache_path(iso2, level, res, buffer_into_sea_km)
+      if (!is.null(cache_file) && file.exists(cache_file)) {
+        message(glue::glue("Loading cached province boundaries for {iso2}"))
+        return(terra::vect(cache_file))
+      }
+
       message(glue::glue("Getting province boundaries for {iso2}"))
 
       # Use creahelpers to get administrative boundaries
@@ -201,7 +288,16 @@ SourceProvincial <- R6::R6Class(
 
       # Buffer into sea if requested
       if (buffer_into_sea_km > 0) {
-        vect <- self$buffer_into_sea(vect, id_col = glue::glue("GID_{level}"), buffer_into_sea_km)
+        vect <- self$buffer_into_sea(
+          vect,
+          id_col = glue::glue("GID_{level}"),
+          buffer_into_sea_km = buffer_into_sea_km,
+          res = res
+        )
+      }
+
+      if (!is.null(cache_file)) {
+        terra::writeVector(vect, cache_file, overwrite = TRUE)
       }
 
       return(vect)

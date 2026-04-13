@@ -61,6 +61,35 @@ shiny::runApp('inst/')
 
 For deployment instructions, see [DEPLOY.md](DEPLOY.md).
 
+
+## Test Structure
+
+**Important**: Only the *Constructor and offline smoke tests* run on Github. The others need to be run locally to validate generated datasets before deploying the dashboard. Simply run the whole test suite.
+
+### Constructor and offline smoke tests
+- These verify that source constructors can be created with isolated paths.
+- They check `clear()`, empty `list_available_data()`, and `get()` on fresh directories.
+- They do not call `build()` and should be safe to run on CI without network access.
+
+### Prebuilt sanity tests
+- These are read-only checks against prebuilt files under `data/...` when those directories are available locally.
+- They cover:
+  - national vs provincial consistency
+  - national vs raster consistency
+  - comparison with some hardcoded/manually extracted values
+- On environments without prebuilt data, such as GitHub runners, these tests skip cleanly.
+
+### Test cache helpers
+- The suite uses `tests/testthat/cache/` as a repo-local test cache root.
+- Cache seeding can reuse matching artifacts from the main `cache/` tree by hard-linking or copying them into the test cache.
+- This speeds up local rebuild-oriented workflows without making the default suite depend on downloads.
+
+## Test Data and Paths
+
+- `tests/testthat/test_data/` holds isolated temporary workspaces created during tests.
+- `tests/testthat/cache/` holds reusable test cache artifacts.
+- Prebuilt sanity tests read from `data/...` and never mutate those directories.
+
 ## Contact
 
 **Data Team**: [data-team@energyandcleanair.org](mailto:data-team@energyandcleanair.org)

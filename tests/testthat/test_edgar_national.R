@@ -1,55 +1,21 @@
-test_that("EDGAR national source works correctly", {
+test_that("EDGAR national constructor uses isolated paths offline", {
+  paths <- new_test_source_paths("edgar")
 
-  # Test parameters
-  test_pollutant <- "NMVOC"
-  test_sector <- "Residential and other sectors"
-  test_year <- 2022
-  test_iso3 <- "IDN"
-  known_value_kt <- 384.35  # Known value from EDGAR national data
+  edgar_source <- EDGARNational$new(
+    data_dir = paths$data_dir,
+    cache_dir = paths$cache_dir
+  )
 
-  # Create source instance with test data directory
-  test_data_dir <- get_test_data_path("edgar", "national")
-  edgar_source <- EDGARNational$new(data_dir = test_data_dir)
-  edgar_source$clear()
+  expect_false(edgar_source$use_prebuilt_available_data)
+  expect_equal(normalizePath(edgar_source$data_dir), normalizePath(paths$data_dir))
+  expect_equal(normalizePath(edgar_source$cache_dir), normalizePath(paths$cache_dir))
 
-  # Test 1: Check empty test data directory
+  expect_equal(edgar_source$clear(), 0)
+
   available_data <- edgar_source$list_available_data()
   expect_equal(nrow(available_data), 0)
+  expect_true(all(c("pollutant", "sector", "year", "iso3") %in% names(available_data)))
 
-  # Test 2: Get data when none available
-  result <- edgar_source$get(test_pollutant, test_sector, test_year)
+  result <- edgar_source$get("NMVOC", "Residential and other sectors", 2022, iso3 = "IDN")
   expect_null(result)
-
-  # Test 3: Build data (default: per-pollutant download then discard raw cache under cache/edgar/edgar_raw)
-  edgar_source$build(min_year = 2022)
-
-  cache_edgar_raw <- file.path(get_cache_folder("edgar"), "edgar_raw")
-  expect_true(!dir.exists(cache_edgar_raw) || length(list.files(cache_edgar_raw)) == 0)
-
-  # Test 4: Check available data after build
-  available_data <- edgar_source$list_available_data()
-  expect_gt(nrow(available_data), 0)
-  expect_true(all(c("pollutant", "sector", "year") %in% names(available_data)))
-
-  # Test 5: Get data after build
-  result <- edgar_source$get(test_pollutant, test_sector, test_year, iso3 = test_iso3)
-  expect_false(is.null(result))
-  expect_gt(nrow(result), 0)
-  expect_true(all(c("iso3", "poll", "sector", "year", "value") %in% names(result)))
-
-  # Test 6: Validate against known value
-  total_emissions <- sum(result$value, na.rm = TRUE)
-  expect_equal(total_emissions, known_value_kt, tolerance = 0.01)
-
-  # Test 7: Check data structure
-  expect_true(all(result$poll == test_pollutant))
-  expect_true(all(result$sector == map_values(test_sector, EDGAR_NATIONAL_SECTOR_MAPPING)))
-  expect_true(all(result$year == test_year))
-
-  # Test 8: Verify data is saved to test directory, not main data
-  test_files <- list.files(test_data_dir, recursive = TRUE)
-  expect_gt(length(test_files), 0)
-
-  # Clean up test data (optional - tests can run independently)
-  edgar_source$clear()
 })

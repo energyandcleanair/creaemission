@@ -51,22 +51,38 @@ EDGARMap <- R6::R6Class(
     #' @field cache_dir Directory for temporary files
     cache_dir = NULL,
 
+    #' @field use_prebuilt_available_data Whether list_available_data() may use inst/cache shortcuts
+    use_prebuilt_available_data = NULL,
+
     #' @description Initialize EDGAR map source
     #' @param version Data version
     #' @param available_years Available years
     #' @param data_dir Data directory path
+    #' @param cache_dir Cache directory path
+    #' @param use_prebuilt_available_data Whether list_available_data() may use inst/cache shortcuts
     initialize = function(version = "v8.1",
                           available_years = seq(2000, EDGAR_MAX_YEAR),
-                          data_dir = NULL) {
+                          data_dir = NULL,
+                          cache_dir = NULL,
+                          use_prebuilt_available_data = NULL) {
+      uses_default_data_dir <- is.null(data_dir)
+
       # Use path resolution if data_dir is not provided
-      if (is.null(data_dir)) {
+      if (uses_default_data_dir) {
         data_dir <- get_data_path(c("edgar", "maps"))
+      }
+      if (is.null(cache_dir)) {
+        cache_dir <- get_cache_folder("edgar")
+      }
+      if (is.null(use_prebuilt_available_data)) {
+        use_prebuilt_available_data <- uses_default_data_dir
       }
 
       super$initialize(data_dir = data_dir)
       self$version <- version
       self$available_years <- available_years
-      self$cache_dir <- get_cache_folder("edgar")
+      self$cache_dir <- cache_dir
+      self$use_prebuilt_available_data <- use_prebuilt_available_data
 
       # Create directories if they don't exist
       for (dir in c(self$data_dir, self$cache_dir)) {
@@ -172,7 +188,7 @@ EDGARMap <- R6::R6Class(
       }
 
       # Try prebuilt cache (no filters only)
-      if (is.null(pollutant) && is.null(year) && is.null(sector)) {
+      if (self$use_prebuilt_available_data && is.null(pollutant) && is.null(year) && is.null(sector)) {
         cache_file <- file.path(get_project_root(), "inst", "cache", "available_data", "edgar_map.rds")
         if (file.exists(cache_file)) return(readRDS(cache_file))
       }
@@ -361,8 +377,12 @@ EDGARMap <- R6::R6Class(
       removed_count <- 0
 
       if (dir.exists(self$data_dir)) {
-        nc_files <- list.files(self$data_dir, pattern = "\\.nc$", full.names = TRUE)
-        for (file in nc_files) {
+        built_files <- list.files(
+          self$data_dir,
+          pattern = "(\\.nc$|\\.tif$|\\.tif\\.aux\\.json$)",
+          full.names = TRUE
+        )
+        for (file in built_files) {
           if (file.remove(file)) {
             removed_count <- removed_count + 1
           }
@@ -703,4 +723,3 @@ EDGARMap <- R6::R6Class(
     }
   )
 )
-
