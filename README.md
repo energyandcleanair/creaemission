@@ -43,6 +43,8 @@ build_all_emissions_data(build_maps = TRUE)
 
 For detailed build options and configuration, see [build_data.R](build_data.R).
 
+Note: built data is not stored in this repository, nor it is accessible in online buckets. However, there is a **Download** tab in the portal to download personalised datasets.
+
 ## Run Locally
 
 First build the package:
