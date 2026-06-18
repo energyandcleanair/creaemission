@@ -27,6 +27,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         id = "nav-page",
         source(file.path("ui", "tab_charts.R"),  local = TRUE)$value,
         source(file.path("ui", "tab_maps.R"),  local = TRUE)$value,
+        source(file.path("ui", "tab_download.R"),  local = TRUE)$value,
         source(file.path("ui", "tab_about.R"),  local = TRUE)$value
     )
 )
